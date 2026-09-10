@@ -372,12 +372,6 @@ Track Order
 
 ---
 
-# 📸 Screenshots
-
-| Mobile | AI Catalog | Marketplace |
-|---------|------------|-------------|
-| Add screenshots here | Add screenshots here | Add screenshots here |
-
 ---
 
 # 🔮 Future Scope
