@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+build
+.next
+.expo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

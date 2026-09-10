@@ -1,0 +1,358 @@
+// ==============================================================================
+// PRISMA SCHEMA: AI-Driven Market Linkage & Smart Cataloging Platform
+// Database Provider: Supabase PostgreSQL (with pgvector support)
+// ==============================================================================
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==============================================================================
+// SECTION 1: ENUMS
+// ==============================================================================
+
+enum UserRole {
+  ARTISAN
+  BUYER
+  B2B_BUYER
+  ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum MediaType {
+  ORIGINAL_PHOTO
+  PROCESSED_PHOTO
+  MARKETING_ASSET
+  VOICE_NOTE
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum InquiryStatus {
+  OPEN
+  RESPONDED
+  CLOSED
+}
+
+// ==============================================================================
+// SECTION 2: USERS & PROFILES (Mapped to Supabase Auth UUID)
+// ==============================================================================
+
+model User {
+  id        String     @id @default(uuid()) @db.Uuid
+  email     String?    @unique
+  phone     String?    @unique @map("phone")
+  roles     UserRole[] @default([ARTISAN]) @map("roles")
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  profile             Profile?
+  products            Product[]    @relation("ArtisanProducts")
+  buyerOrders         Order[]      @relation("BuyerOrders")
+  artisanOrders       Order[]      @relation("ArtisanOrders")
+  b2bBuyerInquiries   B2BInquiry[] @relation("B2BBuyerInquiries")
+  artisanB2BInquiries B2BInquiry[] @relation("ArtisanB2BInquiries")
+
+  @@map("users")
+  @@index([email])
+  @@index([phone])
+  @@index([isActive])
+}
+
+model Profile {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  fullName          String   @map("full_name")
+  businessName      String?  @map("business_name")
+  craftType         String?  @map("craft_type")
+  region            String?  @map("region")
+  state             String?  @map("state")
+  preferredLanguage String   @default("en") @map("preferred_language")
+  bio               String?  @db.Text
+  avatarUrl         String?  @map("avatar_url")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+  @@index([userId])
+  @@index([region])
+  @@index([preferredLanguage])
+}
+
+// ==============================================================================
+// SECTION 3: PRODUCT & CATALOG CORE
+// ==============================================================================
+
+model Product {
+  id           String        @id @default(uuid()) @db.Uuid
+  artisanId    String        @map("artisan_id") @db.Uuid
+  category     String        @map("category")
+  status       ProductStatus @default(DRAFT) @map("status")
+  baseStock    Int           @default(1) @map("base_stock")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  artisan      User          @relation("ArtisanProducts", fields: [artisanId], references: [id], onDelete: Cascade)
+  translations ProductTranslation[]
+  metadata     ProductMetadata?
+  media        Media[]
+  pricing      Pricing?
+  orderItems   OrderItem[]
+  b2bInquiries B2BInquiry[]
+
+  @@map("products")
+  @@index([artisanId])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ProductTranslation {
+  id               String   @id @default(uuid()) @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  languageCode     String   @map("language_code")
+  title            String   @map("title")
+  shortDescription String?  @map("short_description") @db.Text
+  longDescription  String?  @map("long_description") @db.Text
+  features         String[] @default([]) @map("features")
+  story            String?  @map("story") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, languageCode])
+  @@map("product_translations")
+  @@index([productId])
+  @@index([languageCode])
+}
+
+model ProductMetadata {
+  id             String   @id @default(uuid()) @db.Uuid
+  productId      String   @unique @map("product_id") @db.Uuid
+  material       String?  @map("material")
+  craftType      String?  @map("craft_type")
+  colorPalette   String[] @default([]) @map("color_palette")
+  pattern        String?  @map("pattern")
+  culturalOrigin String?  @map("cultural_origin")
+  dimensions     Json?    @map("dimensions")
+  weight         Json?    @map("weight")
+  rawAiTags      Json?    @map("raw_ai_tags")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_metadata")
+  @@index([productId])
+  @@index([craftType])
+  @@index([material])
+}
+
+// ==============================================================================
+// SECTION 4: MEDIA MANAGEMENT
+// ==============================================================================
+
+model Media {
+  id               String           @id @default(uuid()) @db.Uuid
+  productId        String           @map("product_id") @db.Uuid
+  storageBucket    String           @default("artisan-media") @map("storage_bucket")
+  storagePath      String           @map("storage_path")
+  url              String           @map("url")
+  mediaType        MediaType        @default(ORIGINAL_PHOTO) @map("media_type")
+  processingStatus ProcessingStatus @default(PENDING) @map("processing_status")
+  metadata         Json?            @map("metadata")
+  displayOrder     Int              @default(0) @map("display_order")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+  @@index([productId])
+  @@index([mediaType])
+  @@index([processingStatus])
+  @@index([displayOrder])
+}
+
+// ==============================================================================
+// SECTION 5: SMART PRICING ENGINE
+// ==============================================================================
+
+model Pricing {
+  id                 String   @id @default(uuid()) @db.Uuid
+  productId          String   @unique @map("product_id") @db.Uuid
+
+  // Raw Cost Inputs
+  materialCost       Decimal  @default(0) @map("material_cost") @db.Decimal(10, 2)
+  labourCost         Decimal  @default(0) @map("labour_cost") @db.Decimal(10, 2)
+  labourHours        Decimal  @default(0) @map("labour_hours") @db.Decimal(6, 2)
+  packagingCost      Decimal  @default(0) @map("packaging_cost") @db.Decimal(10, 2)
+  transportCost      Decimal  @default(0) @map("transport_cost") @db.Decimal(10, 2)
+  desiredMargin      Decimal  @default(0) @map("desired_margin") @db.Decimal(5, 2)
+
+  // AI Pricing Engine Outputs
+  aiMinPrice         Decimal? @map("ai_min_price") @db.Decimal(10, 2)
+  aiRecommendedPrice Decimal? @map("ai_recommended_price") @db.Decimal(10, 2)
+  aiPremiumPrice     Decimal? @map("ai_premium_price") @db.Decimal(10, 2)
+  pricingExplanation String?  @map("pricing_explanation") @db.Text
+
+  // Currency
+  currency           String   @default("INR") @map("currency") @db.VarChar(3)
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("pricings")
+  @@index([productId])
+}
+
+// ==============================================================================
+// SECTION 6: PGVECTOR SEMANTIC SEARCH SUPPORT
+// ==============================================================================
+//
+// The pgvector extension provides high-dimensional vector similarity search
+// for multi-modal catalog matching and buyer recommendation queries.
+//
+// To apply pgvector to this PostgreSQL / Supabase database:
+//
+// 1. Enable the pgvector extension in Supabase SQL Editor:
+//    CREATE EXTENSION IF NOT EXISTS vector;
+//
+// 2. Add the 1536-dimensional embedding vector column to product_metadata:
+//    ALTER TABLE "product_metadata" 
+//    ADD COLUMN IF NOT EXISTS "embedding" vector(1536);
+//
+// 3. Create an HNSW index for ultra-fast cosine similarity search:
+//    CREATE INDEX IF NOT EXISTS "product_metadata_embedding_hnsw_idx" 
+//    ON "product_metadata" 
+//    USING hnsw ("embedding" vector_cosine_ops);
+//
+// 4. Create an RPC search function in Supabase for vector queries:
+//    CREATE OR REPLACE FUNCTION match_products(
+//      query_embedding vector(1536),
+//      match_threshold float DEFAULT 0.7,
+//      match_count int DEFAULT 10
+//    )
+//    RETURNS TABLE (
+//      product_id uuid,
+//      similarity float
+//    )
+//    LANGUAGE plpgsql
+//    AS $$
+//    BEGIN
+//      RETURN QUERY
+//      SELECT
+//        pm.product_id,
+//        1 - (pm.embedding <=> query_embedding) AS similarity
+//      FROM product_metadata pm
+//      WHERE pm.embedding IS NOT NULL
+//        AND 1 - (pm.embedding <=> query_embedding) > match_threshold
+//      ORDER BY similarity DESC
+//      LIMIT match_count;
+//    END;
+//    $$;
+//
+// Note: In Prisma, if you wish to expose the column directly in queries, you can add:
+//   embedding Unsupported("vector(1536)")?
+// inside the ProductMetadata model, or query via Prisma's `$queryRaw` API.
+// ==============================================================================
+
+// ==============================================================================
+// SECTION 7: ORDER MANAGEMENT & B2B INQUIRIES
+// ==============================================================================
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  buyerId         String      @map("buyer_id") @db.Uuid
+  artisanId       String      @map("artisan_id") @db.Uuid
+  totalAmount     Decimal     @map("total_amount") @db.Decimal(10, 2)
+  currency        String      @default("INR") @map("currency") @db.VarChar(3)
+  status          OrderStatus @default(PENDING) @map("status")
+  shippingAddress String?     @map("shipping_address") @db.Text
+  buyerPhone      String?     @map("buyer_phone")
+  buyerNotes      String?     @map("buyer_notes") @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  buyer           User        @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
+  artisan         User        @relation("ArtisanOrders", fields: [artisanId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+
+  @@map("orders")
+  @@index([buyerId])
+  @@index([artisanId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  quantity        Int      @default(1) @map("quantity")
+  priceAtPurchase Decimal  @map("price_at_purchase") @db.Decimal(10, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+model B2BInquiry {
+  id                String        @id @default(uuid()) @db.Uuid
+  b2bBuyerId        String        @map("b2b_buyer_id") @db.Uuid
+  artisanId         String        @map("artisan_id") @db.Uuid
+  productId         String        @map("product_id") @db.Uuid
+  requestedQuantity Int           @map("requested_quantity")
+  targetPrice       Decimal?      @map("target_price") @db.Decimal(10, 2)
+  deliveryTimeline  String?       @map("delivery_timeline")
+  message           String?       @map("message") @db.Text
+  status            InquiryStatus @default(OPEN) @map("status")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  b2bBuyer          User          @relation("B2BBuyerInquiries", fields: [b2bBuyerId], references: [id], onDelete: Cascade)
+  artisan           User          @relation("ArtisanB2BInquiries", fields: [artisanId], references: [id], onDelete: Cascade)
+  product           Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("b2b_inquiries")
+  @@index([b2bBuyerId])
+  @@index([artisanId])
+  @@index([productId])
+  @@index([status])
+}
+
