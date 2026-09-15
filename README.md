@@ -63,7 +63,7 @@ Automatically creates:
 
 - WhatsApp Posters
 - Social Media Posters
-- Product Captions
+- Product Caption
 - Marketing Descriptions
 
 ---
