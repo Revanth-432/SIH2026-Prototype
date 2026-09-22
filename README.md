@@ -1,6 +1,6 @@
 # 🎨 KalaSangam (कलासंगम)
 
-> **Empowering Marginalized Artisans Through Multimodal Generative AI**
+> **Empowering Marginalized Artisans Through Multimodal Generative AI***
 
 [![Expo](https://img.shields.io/badge/Expo-React%20Native-000020?logo=expo)](https://expo.dev/)
 [![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs)](https://nestjs.com/)
