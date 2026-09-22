@@ -1,0 +1,12 @@
+{
+  "name": "artisan-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "overrides": {
+    "@expo/server": "0.4.4"
+  }
+}

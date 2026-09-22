@@ -294,7 +294,7 @@ export class BackgroundRemovalService {
           `[Stability AI] Sending SD3 img2img request for angle ${spec.angle} (${spec.angleLabel})...`,
         );
         const formData = new FormData();
-        const blob = new Blob([cutoutBuffer], { type: 'image/png' });
+        const blob = new Blob([cutoutBuffer as any], { type: 'image/png' });
         formData.append('image', blob, 'cutout.png');
         formData.append('prompt', spec.prompt);
         formData.append(
@@ -374,7 +374,7 @@ export class BackgroundRemovalService {
       try {
         console.log(`[PhotoRoom] Calling PhotoRoom API for angle ${spec.angle}...`);
         const formData = new FormData();
-        const blob = new Blob([cutoutBuffer], { type: 'image/png' });
+        const blob = new Blob([cutoutBuffer as any], { type: 'image/png' });
         formData.append('image_file', blob, 'cutout.png');
         formData.append('prompt', spec.prompt);
 
