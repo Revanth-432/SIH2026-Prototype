@@ -302,6 +302,11 @@ model Order {
   shippingAddress String?     @map("shipping_address") @db.Text
   buyerPhone      String?     @map("buyer_phone")
   buyerNotes      String?     @map("buyer_notes") @db.Text
+  // Online payment (Razorpay). No Razorpay order id = Cash on Delivery.
+  // The payment id is stored only after the payment signature is verified.
+  razorpayOrderId   String?   @map("razorpay_order_id")
+  razorpayPaymentId String?   @map("razorpay_payment_id")
+  razorpaySignature String?   @map("razorpay_signature")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 

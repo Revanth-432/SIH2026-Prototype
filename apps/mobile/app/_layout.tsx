@@ -1,11 +1,27 @@
 import './global.css';
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, Text } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { View, ActivityIndicator } from 'react-native';
+import {
+  useFonts,
+  Mukta_400Regular,
+  Mukta_500Medium,
+  Mukta_600SemiBold,
+    Mukta_700Bold,
+} from '@expo-google-fonts/mukta';
+import {
+  NotoSansTelugu_400Regular,
+  NotoSansTelugu_500Medium,
+  NotoSansTelugu_600SemiBold,
+  NotoSansTelugu_700Bold,
+} from '@expo-google-fonts/noto-sans-telugu';
+import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { enableFreeze, enableScreens } from 'react-native-screens';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { supabase } from '../src/lib/supabase';
+import { useLanguageStore, isAppLanguage } from '../src/store/useLanguageStore';
+import { Text, COLORS } from '../src/components/ui';
+import { Logo } from '../src/components/Logo';
 
 // Disable react-freeze globally to permanently prevent touch freeze / unresponsive screens on Android
 enableScreens(true);
@@ -16,6 +32,27 @@ export default function RootLayout() {
     useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+  const [fontsLoaded] = useFonts({
+    Mukta_400Regular,
+    Mukta_500Medium,
+    Mukta_600SemiBold,
+        Mukta_700Bold,
+    NotoSansTelugu_400Regular,
+    NotoSansTelugu_500Medium,
+    NotoSansTelugu_600SemiBold,
+    NotoSansTelugu_700Bold,
+  });
+  const languageHydrated = useLanguageStore((s) => s.hasHydrated);
+  const setLanguage = useLanguageStore((s) => s.setLanguage);
+  const accountLanguage = session?.user?.user_metadata?.language;
+
+  // Apply the language saved on the user's account (set at sign-up or in Profile)
+  useEffect(() => {
+    if (isAppLanguage(accountLanguage)) {
+      setLanguage(accountLanguage);
+    }
+  }, [accountLanguage, setLanguage]);
 
   // 1. Synchronize Supabase authentication state
   useEffect(() => {
@@ -36,6 +73,7 @@ export default function RootLayout() {
 
   // 2. Navigation protection guard
   useEffect(() => {
+    if (!rootNavigationState?.key) return; // Wait for navigation state to be ready
     if (isLoading || !role) return;
 
     const inAuthGroup = segments[0] === '(auth)';
@@ -71,25 +109,15 @@ export default function RootLayout() {
   }, [session, role, hasCompletedOnboarding, isLoading, segments]);
 
 
-  // Loading state with high-contrast, clean low-literacy indicator
-  if (isLoading) {
+  // Splash while auth state or fonts load
+    if (isLoading || !fontsLoaded || !languageHydrated) {
     return (
       <View className="flex-1 items-center justify-center bg-artisan-canvas px-6">
         <StatusBar style="dark" />
-        <View className="h-16 w-16 items-center justify-center rounded-2xl bg-artisan-primary shadow-md">
-          <Text className="text-3xl font-bold text-white">कला</Text>
-        </View>
-        <Text className="mt-6 text-2xl font-bold text-artisan-slate">
-          KalaSangam
-        </Text>
-        <Text className="mt-1 text-base text-artisan-muted">
-          कला संगम • Artisan Platform
-        </Text>
-        <ActivityIndicator
-          size="large"
-          color="#C85A32"
-          style={{ marginTop: 24 }}
-        />
+        <Logo size={96} />
+        <Text className="mt-6 text-3xl font-bold text-artisan-slate">Kala Vaani</Text>
+        <Text className="text-lg text-artisan-muted">कलावाणी · కళావాణి</Text>
+        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 28 }} />
       </View>
     );
   }
@@ -101,7 +129,7 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           freezeOnBlur: false,
-          contentStyle: { backgroundColor: '#FAF8F5' },
+          contentStyle: { backgroundColor: COLORS.canvas },
         }}
       >
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

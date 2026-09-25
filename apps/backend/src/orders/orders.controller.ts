@@ -19,6 +19,7 @@ import {
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
@@ -71,6 +72,34 @@ export class OrdersController {
   })
   async getBuyerOrders(@CurrentUser() user: AuthenticatedUser) {
     return this.ordersService.getBuyerOrders(user.id);
+  }
+
+  @Post(':id/payment/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify a Razorpay payment',
+    description: 'Checks the Razorpay signature returned by Checkout and marks the order as paid.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID of the order' })
+  async verifyPayment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: VerifyPaymentDto,
+  ) {
+    return this.ordersService.verifyPayment(id, user.id, dto);
+  }
+
+  @Post(':id/payment/cod')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Switch an unpaid online order to Cash on Delivery',
+  })
+  @ApiParam({ name: 'id', description: 'UUID of the order' })
+  async switchToCashOnDelivery(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.switchToCashOnDelivery(id, user.id);
   }
 
   @Patch(':id/status')

@@ -105,56 +105,83 @@ Ensure all fields are present, accurate to traditional Indian craftsmanship, and
 
   contents.push(prompt);
 
-  // 4. Try candidate models in order of capability and availability
+  // 4. Try candidate models in order of capability and availability.
+  // Full Flash models often return 503 (high demand); the Flash-Lite models
+  // run on separate capacity and support image + audio, so they act as fallbacks.
   const CANDIDATE_MODELS = [
     'gemini-3.6-flash',
-    'gemini-3.5-flash',
-    'gemini-2.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
   ];
+  const MAX_ROUNDS = 2;
+  const RETRY_DELAY_MS = 2500;
 
   let lastError: any = null;
 
-  for (const modelName of CANDIDATE_MODELS) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    if (round > 0) {
+      // Only retry when every model was temporarily overloaded (503)
+      const wasBusy = lastError?.message?.includes('503') || lastError?.message?.includes('high demand');
+      if (!wasBusy) break;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
 
-      const response = await model.generateContent(contents);
-      const textResponse = response.response.text();
+    for (const modelName of CANDIDATE_MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
 
-      // Strip markdown fences if present
-      let cleanText = textResponse.trim();
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.slice(7);
-      } else if (cleanText.startsWith('```')) {
-        cleanText = cleanText.slice(3);
+        const response = await model.generateContent(contents);
+        const textResponse = response.response.text();
+
+        // Strip markdown fences if present
+        let cleanText = textResponse.trim();
+        if (cleanText.startsWith('```json')) {
+          cleanText = cleanText.slice(7);
+        } else if (cleanText.startsWith('```')) {
+          cleanText = cleanText.slice(3);
+        }
+        if (cleanText.endsWith('```')) {
+          cleanText = cleanText.slice(0, -3);
+        }
+        cleanText = cleanText.trim();
+
+        const parsed: ProductCatalogData = JSON.parse(cleanText);
+        return {
+          title: parsed.title || 'Handcrafted Artisan Craft',
+          category: parsed.category || 'Traditional Crafts',
+          shortDescription: parsed.shortDescription || 'Authentic handmade craft piece.',
+          materials: Array.isArray(parsed.materials) ? parsed.materials : ['Natural Materials'],
+          craftType: parsed.craftType || 'Traditional Craft',
+          suggestedPriceRange: parsed.suggestedPriceRange || '₹500 - ₹800',
+        };
+      } catch (err: any) {
+        const msg = err?.message || '';
+        console.warn(`Model ${modelName} failed or unavailable, trying fallback:`, msg);
+        lastError = err;
       }
-      if (cleanText.endsWith('```')) {
-        cleanText = cleanText.slice(0, -3);
-      }
-      cleanText = cleanText.trim();
-
-      const parsed: ProductCatalogData = JSON.parse(cleanText);
-      return {
-        title: parsed.title || 'Handcrafted Artisan Craft',
-        category: parsed.category || 'Traditional Crafts',
-        shortDescription: parsed.shortDescription || 'Authentic handmade craft piece.',
-        materials: Array.isArray(parsed.materials) ? parsed.materials : ['Natural Materials'],
-        craftType: parsed.craftType || 'Traditional Craft',
-        suggestedPriceRange: parsed.suggestedPriceRange || '₹500 - ₹800',
-      };
-    } catch (err: any) {
-      console.warn(`Model ${modelName} failed or unavailable, trying fallback:`, err.message);
-      lastError = err;
     }
   }
 
-  throw new Error(
-    lastError?.message || 'Could not analyze craft with AI. Please retry or enter details manually.',
-  );
+  // Provide a friendly error message instead of raw API error details
+  const isQuota = lastError?.message?.includes('429') || lastError?.message?.includes('quota');
+  const is503 = lastError?.message?.includes('503') || lastError?.message?.includes('high demand');
+  const is404 = lastError?.message?.includes('404') || lastError?.message?.includes('not found');
+
+  if (isQuota) {
+    throw new Error('AI quota limit reached. Please wait a few minutes and try again, or enter details manually.');
+  } else if (is503) {
+    throw new Error('AI service is temporarily busy. Please try again in a moment, or enter details manually.');
+  } else if (is404) {
+    throw new Error('AI model unavailable. Please try again later, or enter details manually.');
+  }
+
+  throw new Error('Could not analyze craft with AI. Please check your internet connection, retry, or enter details manually.');
 }

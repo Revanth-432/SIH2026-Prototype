@@ -37,7 +37,7 @@ async function bootstrap() {
 
   // Swagger / OpenAPI Specification
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Artisan Platform API')
+    .setTitle('Kala Vaani API')
     .setDescription(
       'AI-Driven Market Linkage & Smart Cataloging Platform for Marginalized Artisans — Core Backend Service API',
     )
@@ -57,7 +57,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document, {
-    customSiteTitle: 'Artisan Platform API Docs',
+    customSiteTitle: 'Kala Vaani API Docs',
     swaggerOptions: {
       persistAuthorization: true,
     },

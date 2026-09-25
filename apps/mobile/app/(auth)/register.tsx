@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { User, Mail, Lock, UserPlus, Eye, EyeOff, CheckCircle } from 'lucide-react-native';
+import { User, Mail, Lock, UserPlus, Eye, EyeOff, CheckCircle, LogIn } from 'lucide-react-native';
 import { supabase } from '../../src/lib/supabase';
+import { Text, IconInput, Button, Field, LanguagePicker, COLORS } from '../../src/components/ui';
+import { useT } from '../../src/i18n';
+import { useLanguageStore } from '../../src/store/useLanguageStore';
 
 export default function RegisterScreen() {
-  const router = useRouter();
+    const router = useRouter();
+  const { t, language } = useT();
+  const setLanguage = useLanguageStore((s) => s.setLanguage);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,12 +27,12 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!fullName.trim() || !email.trim() || !password.trim()) {
-      setErrorMessage('कृपया सभी विवरण भरें (Please fill all fields)');
+      setErrorMessage(t('auth.fillAll'));
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage('पासवर्ड कम से कम 6 अक्षरों का होना चाहिए (Password must be at least 6 characters)');
+      setErrorMessage(t('auth.passwordShort'));
       return;
     }
 
@@ -45,7 +47,8 @@ export default function RegisterScreen() {
         options: {
           data: {
             full_name: fullName.trim(),
-            onboarded: false,
+                        onboarded: false,
+            language,
           },
         },
       });
@@ -57,11 +60,11 @@ export default function RegisterScreen() {
         router.replace('/(auth)/onboarding');
       } else {
         setSuccessMessage(
-          'खाता बनाया गया! (Account created! Please sign in to select your role and complete setup.)',
+                    t('auth.accountCreated'),
         );
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Registration failed. Please try again.');
+      setErrorMessage(err.message || t('common.somethingWrong'));
     } finally {
       setLoading(false);
     }
@@ -73,147 +76,103 @@ export default function RegisterScreen() {
       className="flex-1 bg-artisan-canvas"
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-        className="px-6 py-10"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Branding */}
         <View className="mb-8 items-center">
-          <View className="mb-3 h-20 w-20 items-center justify-center rounded-3xl bg-artisan-amber shadow-lg shadow-artisan-amber/30">
+          <View className="h-20 w-20 items-center justify-center rounded-3xl bg-artisan-primary">
             <UserPlus color="#FFFFFF" size={40} />
           </View>
-          <Text className="text-3xl font-extrabold tracking-tight text-artisan-slate">
-            Join KalaSangam
-          </Text>
-          <Text className="mt-1 text-lg font-medium text-artisan-primary">
-            कारीगर पंजीकरण • Artisan Registration
-          </Text>
-          <Text className="mt-2 text-center text-base text-artisan-muted">
-            Create your artisan profile to showcase crafts
-          </Text>
+          <Text className="mt-4 text-3xl font-bold text-artisan-slate">{t('auth.newAccount')}</Text>
         </View>
 
-        {/* Error Alert Banner */}
-        {errorMessage && (
-          <View className="mb-6 rounded-2xl border border-artisan-error/30 bg-red-50 p-4">
+        {/* Language choice — the whole app switches immediately */}
+        <View className="mb-6">
+          <Text className="mb-2 text-lg font-bold text-artisan-slate">{t('lang.choose')}</Text>
+          <LanguagePicker value={language} onChange={setLanguage} />
+        </View>
+
+        {errorMessage ? (
+          <View className="mb-5 rounded-xl border-2 border-artisan-error bg-red-50 p-4">
             <Text className="text-center text-base font-semibold text-artisan-error">
               {errorMessage}
             </Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Success Alert Banner */}
-        {successMessage && (
-          <View className="mb-6 rounded-2xl border border-artisan-success/30 bg-green-50 p-4 flex-row items-center">
-            <CheckCircle color="#16A34A" size={24} />
+        {successMessage ? (
+          <View className="mb-5 flex-row items-center rounded-xl border-2 border-artisan-success bg-green-50 p-4">
+            <CheckCircle color={COLORS.success} size={26} />
             <Text className="ml-3 flex-1 text-base font-semibold text-artisan-success">
-              {successMessage}
+              {t('auth.accountCreated')}
             </Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Input Fields */}
-        <View className="space-y-4">
-          {/* Full Name */}
-          <View>
-            <Text className="mb-2 text-base font-bold text-artisan-slate">
-              Your Name / आपका नाम
-            </Text>
-            <View className="h-16 flex-row items-center rounded-2xl border-2 border-artisan-border bg-white px-4">
-              <User color="#E58A13" size={24} />
-              <TextInput
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder="e.g. Sunita Devi"
-                placeholderTextColor="#94A3B8"
-                className="ml-3 flex-1 text-lg font-medium text-artisan-slate"
-              />
-            </View>
-          </View>
+        <Field label={t('auth.yourName')}>
+          <IconInput
+            icon={User}
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder={t('auth.namePlaceholder')}
+          />
+        </Field>
 
-          {/* Email */}
-          <View className="mt-4">
-            <Text className="mb-2 text-base font-bold text-artisan-slate">
-              Email / ईमेल
-            </Text>
-            <View className="h-16 flex-row items-center rounded-2xl border-2 border-artisan-border bg-white px-4">
-              <Mail color="#E58A13" size={24} />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="artisan@example.com"
-                placeholderTextColor="#94A3B8"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                className="ml-3 flex-1 text-lg font-medium text-artisan-slate"
-              />
-            </View>
-          </View>
+        <Field label={t('auth.email')}>
+          <IconInput
+            icon={Mail}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="aap@example.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+        </Field>
 
-          {/* Password */}
-          <View className="mt-4">
-            <Text className="mb-2 text-base font-bold text-artisan-slate">
-              Password / पासवर्ड (Min. 6 chars)
-            </Text>
-            <View className="h-16 flex-row items-center rounded-2xl border-2 border-artisan-border bg-white px-4">
-              <Lock color="#E58A13" size={24} />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                className="ml-3 flex-1 text-lg font-medium text-artisan-slate"
-              />
+        <Field label={t('auth.password')} hint={t('auth.passwordHint')}>
+          <IconInput
+            icon={Lock}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            right={
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
-                className="p-2"
-                accessibilityLabel="Toggle password visibility"
+                className="h-12 w-12 items-center justify-center"
+                accessibilityLabel="Show or hide password"
               >
                 {showPassword ? (
-                  <EyeOff color="#64748B" size={22} />
+                  <EyeOff color={COLORS.muted} size={24} />
                 ) : (
-                  <Eye color="#64748B" size={22} />
+                  <Eye color={COLORS.muted} size={24} />
                 )}
               </TouchableOpacity>
-            </View>
-          </View>
+            }
+          />
+        </Field>
 
-          {/* Register Submit Button */}
-          <TouchableOpacity
-            onPress={handleRegister}
-            disabled={loading}
-            activeOpacity={0.8}
-            className="mt-6 h-16 flex-row items-center justify-center rounded-2xl bg-artisan-amber shadow-lg shadow-artisan-amber/30"
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <UserPlus color="#FFFFFF" size={24} />
-                <Text className="ml-3 text-xl font-bold text-white">
-                  Create Account / खाता बनाएं
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+        <Button
+          label={t('auth.createAccount')}
+          icon={UserPlus}
+          onPress={handleRegister}
+          loading={loading}
+          className="mt-2"
+        />
+
+        <View className="my-6 flex-row items-center">
+          <View className="h-px flex-1 bg-artisan-border" />
+          <Text className="mx-3 text-base text-artisan-muted">{t('auth.haveAccount')}</Text>
+          <View className="h-px flex-1 bg-artisan-border" />
         </View>
 
-        {/* Footer Navigation to Login */}
-        <View className="mt-8 items-center">
-          <Text className="text-base text-artisan-muted">
-            Already registered? / पहले से खाता है?
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="mt-2 py-3 px-6 rounded-xl border border-artisan-slate/20 bg-white"
-          >
-            <Text className="text-lg font-bold text-artisan-slate">
-              Sign In Here / यहाँ लॉगिन करें
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Button
+          label={t('auth.login')}
+          icon={LogIn}
+          variant="secondary"
+          onPress={() => router.back()}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

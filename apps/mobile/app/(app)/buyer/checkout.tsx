@@ -1,30 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
   Image,
-  ActivityIndicator,
   Alert,
+  Modal,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ArrowLeft,
   ShoppingBag,
   ShieldCheck,
   MapPin,
   Phone,
-  FileText,
-  Plus,
-  Minus,
   CheckCircle2,
-  Sparkles,
+  Store,
+  Banknote,
+  Smartphone,
+  Clock,
+  type LucideIcon,
 } from 'lucide-react-native';
 import { useAuthStore } from '../../../src/store/useAuthStore';
 import { getApiBaseUrl } from '../../../src/lib/api';
+import {
+  Text,
+  Input,
+  IconInput,
+  Button,
+  Field,
+  ScreenHeader,
+  Loading,
+  Stepper,
+  COLORS,
+} from '../../../src/components/ui';
+import { useT } from '../../../src/i18n';
+import {
+  RazorpayCheckout,
+  type RazorpayPaymentDetails,
+  type RazorpaySuccess,
+} from '../../../src/components/RazorpayCheckout';
+
+type PaymentMethod = 'COD' | 'ONLINE';
 
 interface ProductDetail {
   id: string;
@@ -51,6 +68,7 @@ interface ProductDetail {
 export default function BuyerCheckoutScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { session, role, isLoading } = useAuthStore();
 
@@ -69,6 +87,11 @@ export default function BuyerCheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState<any | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
+  // Online order already saved on the server, waiting for payment
+  const [pendingOnline, setPendingOnline] = useState<{ orderId: string; payment: RazorpayPaymentDetails } | null>(null);
+  const [showRazorpay, setShowRazorpay] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const getBaseApiUrl = () => {
     return getApiBaseUrl();
@@ -99,17 +122,27 @@ export default function BuyerCheckoutScreen() {
 
   const handlePlaceOrder = async () => {
     if (!shippingAddress.trim()) {
-      Alert.alert('Address Required', 'Please enter your delivery address.');
+      Alert.alert(t('buyer.addressTitle'), t('buyer.addressMsg'));
       return;
     }
 
     if (!buyerPhone.trim()) {
-      Alert.alert('Phone Required', 'Please enter your contact phone number.');
+      Alert.alert(t('buyer.phoneTitle'), t('buyer.phoneMsg'));
       return;
     }
 
     if (!session?.access_token) {
-      Alert.alert('Login Required', 'Please log in to complete your order.');
+      Alert.alert(t('common.loginRequired'), t('common.logInFirst'));
+      return;
+    }
+
+    // Order already saved and waiting for payment: don't create a second one
+    if (pendingOnline) {
+      if (paymentMethod === 'ONLINE') {
+        setShowRazorpay(true);
+      } else {
+        await switchToCashOnDelivery();
+      }
       return;
     }
 
@@ -131,337 +164,393 @@ export default function BuyerCheckoutScreen() {
           shippingAddress: shippingAddress.trim(),
           buyerPhone: buyerPhone.trim(),
           buyerNotes: buyerNotes.trim() || undefined,
+          paymentMethod,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setOrderConfirmed(data);
+        if (data.payment) {
+          setPendingOnline({ orderId: data.id, payment: data.payment });
+          setShowRazorpay(true);
+        } else {
+          setOrderConfirmed(data);
+        }
+      } else if (paymentMethod === 'ONLINE' && res.status === 503) {
+        // Razorpay keys missing or Razorpay down: suggest cash on delivery
+        setPaymentMethod('COD');
+        Alert.alert(t('buyer.payOnline'), t('buyer.onlineNotReady'));
       } else {
-        const errorData = await res.json();
-        Alert.alert('Order Failed', errorData.message || 'Could not place order.');
+        const errorData = await res.json().catch(() => ({}));
+        Alert.alert(t('buyer.orderFailed'), errorData.message || t('common.somethingWrong'));
       }
     } catch (err) {
       console.warn('Place order error:', err);
-      Alert.alert('Connection Error', 'Failed to connect to server.');
+      Alert.alert(t('common.noConnection'), t('common.checkInternet'));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${useAuthStore.getState().session?.access_token}`,
+  });
+
+  const handlePaymentSuccess = async (result: RazorpaySuccess) => {
+    setShowRazorpay(false);
+    if (!pendingOnline) return;
+    setVerifying(true);
+    try {
+      const res = await fetch(`${getBaseApiUrl()}/orders/${pendingOnline.orderId}/payment/verify`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(result),
+      });
+      if (!res.ok) throw new Error(`verify failed (${res.status})`);
+      const data = await res.json();
+      setPendingOnline(null);
+      setOrderConfirmed(data);
+    } catch (err) {
+      console.warn('Payment verification error:', err);
+      Alert.alert(t('buyer.paymentNotDone'), t('buyer.paymentVerifyFailed'));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const switchToCashOnDelivery = async () => {
+    if (!pendingOnline) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${getBaseApiUrl()}/orders/${pendingOnline.orderId}/payment/cod`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`switch to COD failed (${res.status})`);
+      const data = await res.json();
+      setPendingOnline(null);
+      setPaymentMethod('COD');
+      setOrderConfirmed(data);
+    } catch (err) {
+      console.warn('Switch to COD error:', err);
+      Alert.alert(t('common.noConnection'), t('common.checkInternet'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePaymentDismiss = (message = t('buyer.paymentNotDoneMsg')) => {
+    setShowRazorpay(false);
+    Alert.alert(t('buyer.paymentNotDone'), message, [
+      { text: t('common.tryAgain'), onPress: () => setShowRazorpay(true) },
+      { text: t('buyer.cod'), onPress: switchToCashOnDelivery },
+      { text: t('profile.cancel'), style: 'cancel' },
+    ]);
+  };
+
   if (loading) {
     return (
-      <View
-        className="flex-1 items-center justify-center bg-artisan-canvas"
-        style={{ paddingTop: Math.max(insets.top, 20) }}
-      >
-        <ActivityIndicator size="large" color="#C85A32" />
-        <Text className="mt-3 text-sm font-bold text-artisan-slate">
-          Preparing checkout...
-        </Text>
+      <View className="flex-1 bg-artisan-canvas">
+        <ScreenHeader title={t('buyer.checkout')} onBack={() => router.back()} />
+        <Loading />
       </View>
     );
   }
 
-  // Order Confirmation Success View
   if (orderConfirmed) {
     return (
       <View
-        className="flex-1 bg-artisan-canvas justify-center items-center p-6"
+        className="flex-1 items-center justify-center bg-artisan-canvas p-4"
         style={{ paddingTop: Math.max(insets.top, 20) }}
       >
-        <View className="w-full rounded-3xl bg-white p-6 shadow-md border border-artisan-border items-center">
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-green-100 border-2 border-green-300">
-            <CheckCircle2 color="#16A34A" size={48} />
+        <View className="w-full items-center rounded-2xl border border-artisan-border bg-white p-5">
+          <View className="h-24 w-24 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle2 color={COLORS.success} size={56} />
           </View>
-
-          <Text className="mt-5 text-2xl font-black text-artisan-slate text-center">
-            Order Placed Successfully!
-          </Text>
-          <Text className="text-sm font-semibold text-artisan-primary mt-1">
-            ऑर्डर सफलतापूर्वक दर्ज किया गया
+          <Text className="mt-4 text-center text-2xl font-bold text-artisan-slate">{t('buyer.orderPlaced')}</Text>
+          <Text className="mt-1 text-center text-base text-artisan-muted">
+                        {t('buyer.artisanWillConfirm')}
           </Text>
 
-          <View className="mt-4 w-full rounded-2xl bg-slate-50 p-4 border border-slate-200">
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-xs text-slate-500">Order ID:</Text>
-              <Text className="text-xs font-mono font-bold text-artisan-slate">
-                {orderConfirmed.id ? orderConfirmed.id.slice(0, 8).toUpperCase() : 'CONFIRMED'}
+          <View className="mt-4 w-full rounded-xl bg-stone-50 p-4">
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('buyer.order')}</Text>
+              <Text className="text-base font-bold text-artisan-slate">
+                #{orderConfirmed.id ? orderConfirmed.id.slice(0, 8).toUpperCase() : 'CONFIRMED'}
               </Text>
             </View>
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-xs text-slate-500">Total Amount:</Text>
-              <Text className="text-xs font-bold text-green-800">
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('common.total')}</Text>
+              <Text className="text-base font-bold text-artisan-success">
                 ₹{orderConfirmed.totalAmount || totalAmount}
               </Text>
             </View>
-            <View className="flex-row justify-between">
-              <Text className="text-xs text-slate-500">Status:</Text>
-              <Text className="text-xs font-bold text-amber-700">
-                PENDING ARTISAN ACCEPTANCE
-              </Text>
+            <View className="flex-row items-center justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('buyer.payment')}</Text>
+              {orderConfirmed.paymentStatus === 'PAID' ? (
+                <View key="paid" className="flex-row items-center">
+                  <CheckCircle2 color={COLORS.success} size={18} />
+                  <Text className="ml-1 text-base font-bold text-artisan-success">{t('buyer.paymentDone')}</Text>
+                </View>
+              ) : (
+                <View key="cod" className="flex-row items-center">
+                  <Banknote color={COLORS.ink} size={18} />
+                  <Text className="ml-1 text-base font-bold text-artisan-slate">
+                    {t('buyer.payOnDelivery', { p: orderConfirmed.totalAmount || totalAmount })}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
-          <Text className="mt-4 text-center text-xs text-artisan-muted leading-relaxed">
-            The artisan has been notified to prepare and package your handcrafted items. You will receive SMS dispatch updates.
-          </Text>
-
-          {/* View My Orders Action */}
-          <TouchableOpacity
-            onPress={() => router.replace('/(app)/buyer-orders')}
-            activeOpacity={0.88}
-            className="mt-6 w-full h-14 flex-row items-center justify-center rounded-2xl bg-artisan-primary shadow-md active:bg-orange-700"
-          >
-            <ShoppingBag color="#FFFFFF" size={20} />
-            <Text className="ml-2 text-base font-extrabold text-white">
-              View My Orders / मेरे ऑर्डर
-            </Text>
-          </TouchableOpacity>
-
-          {/* Continue Shopping Action */}
-          <TouchableOpacity
-            onPress={() => router.replace('/(app)/buyer/feed')}
-            activeOpacity={0.8}
-            className="mt-3 py-2 px-4"
-          >
-            <Text className="text-xs font-bold text-slate-500">
-              Back to Marketplace / बाज़ार
-            </Text>
-          </TouchableOpacity>
+          <View className="mt-5 w-full" style={{ gap: 10 }}>
+            <Button
+              label={t('buyer.viewMyOrders')}
+              icon={ShoppingBag}
+              onPress={() => router.replace('/(app)/buyer-orders')}
+            />
+            <Button
+              label={t('buyer.keepShopping')}
+              icon={Store}
+              variant="ghost"
+              onPress={() => router.replace('/(app)/buyer/feed')}
+            />
+          </View>
         </View>
       </View>
     );
   }
 
   return (
-    <View
-      className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) }}
-    >
-      {/* Header */}
-      <View className="flex-row items-center border-b border-artisan-border bg-white px-4 py-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 mr-3"
-        >
-          <ArrowLeft color="#1E293B" size={22} />
-        </TouchableOpacity>
-        <View>
-          <Text className="text-lg font-black text-artisan-slate">
-            Direct Artisan Checkout
-          </Text>
-          <Text className="text-xs text-artisan-muted">
-            100% Transparent Fair-Trade Purchase
-          </Text>
-        </View>
-      </View>
+    <View className="flex-1 bg-artisan-canvas">
+      <ScreenHeader title={t('buyer.checkout')} onBack={() => router.back()} />
 
-      <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
-        {/* Craft Summary Card */}
-        {product && (
-          <View className="rounded-3xl border border-artisan-border bg-white p-4 shadow-sm mb-5">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {product ? (
+          <View className="mb-4 rounded-2xl border border-artisan-border bg-white p-3">
             <View className="flex-row items-center">
-              <View className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-100 border border-artisan-border">
+              <View className="h-20 w-20 overflow-hidden rounded-xl bg-stone-100">
                 {product.media.thumbnail ? (
-                  <Image
-                    source={{ uri: product.media.thumbnail }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
+                  <Image source={{ uri: product.media.thumbnail }} className="h-full w-full" resizeMode="cover" />
                 ) : (
-                  <View className="h-full w-full items-center justify-center bg-orange-50">
-                    <ShoppingBag color="#C85A32" size={28} />
+                  <View className="h-full w-full items-center justify-center bg-artisan-light">
+                    <ShoppingBag color={COLORS.primary} size={28} />
                   </View>
                 )}
               </View>
-
               <View className="ml-3 flex-1">
-                <Text className="text-xs font-bold text-artisan-primary uppercase">
-                  {product.craftType || product.category}
-                </Text>
-                <Text
-                  className="mt-0.5 text-base font-bold text-artisan-slate"
-                  numberOfLines={1}
-                >
+                <Text className="text-lg font-bold text-artisan-slate" numberOfLines={2}>
                   {product.title}
                 </Text>
-                <Text className="text-xs text-artisan-muted">
-                  Handcrafted by {product.artisan.name}
-                </Text>
-                <Text className="mt-1 text-lg font-black text-green-700">
-                  ₹{unitPrice}
-                </Text>
+                <Text className="text-sm text-artisan-muted">{t('common.by', { name: product.artisan.name })}</Text>
+                <Text className="text-xl font-bold text-artisan-success">₹{unitPrice}</Text>
               </View>
             </View>
 
-            {/* Quantity Selector */}
-            <View className="mt-4 flex-row items-center justify-between border-t border-slate-100 pt-3">
+            <View className="mt-3 flex-row items-center justify-between border-t border-artisan-border pt-3">
               <View>
-                <Text className="text-sm font-bold text-artisan-slate">
-                  Quantity / संख्या
-                </Text>
+                <Text className="text-lg font-bold text-artisan-slate">{t('buyer.quantity')}</Text>
                 {product?.baseStock ? (
-                  <Text className="text-[11px] text-artisan-primary font-bold mt-0.5">
-                    Max order limit: {product.baseStock} units
-                  </Text>
+                  <Text className="text-sm text-artisan-muted">{t('buyer.max', { n: product.baseStock })}</Text>
                 ) : null}
               </View>
-              <View className="flex-row items-center space-x-3">
-                <TouchableOpacity
-                  onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="h-10 w-10 items-center justify-center rounded-xl bg-slate-100 mr-2"
-                >
-                  <Minus color="#1E293B" size={18} />
-                </TouchableOpacity>
-                <Text className="text-lg font-black text-artisan-slate min-w-[20px] text-center mr-2">
-                  {quantity}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    const limit = product?.baseStock || 10;
-                    if (quantity >= limit) {
-                      Alert.alert(
-                        'अधिकतम सीमा (Max Limit)',
-                        `This artisan has set a maximum order limit of ${limit} units for this craft.`,
-                      );
-                      return;
-                    }
-                    setQuantity(quantity + 1);
-                  }}
-                  className="h-10 w-10 items-center justify-center rounded-xl bg-slate-100"
-                >
-                  <Plus color="#1E293B" size={18} />
-                </TouchableOpacity>
-              </View>
+              <Stepper
+                value={quantity}
+                onMinus={() => !pendingOnline && setQuantity(Math.max(1, quantity - 1))}
+                onPlus={() => {
+                  if (pendingOnline) return;
+                  const limit = product?.baseStock || 10;
+                  if (quantity >= limit) {
+                    Alert.alert(t('buyer.limitTitle'), t('buyer.limitMsg', { n: limit }));
+                    return;
+                  }
+                  setQuantity(quantity + 1);
+                }}
+              />
             </View>
-
           </View>
-        )}
+        ) : null}
 
-        {/* Delivery Details Form */}
-        <View className="rounded-3xl border border-artisan-border bg-white p-5 shadow-sm mb-5">
-          <Text className="text-base font-extrabold text-artisan-slate mb-3">
-            Delivery Details / डिलीवरी पता
-          </Text>
-
-          {/* Shipping Address */}
-          <View className="mb-4">
-            <View className="flex-row items-center mb-1.5">
-              <MapPin color="#C85A32" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Delivery Address *
-              </Text>
-            </View>
-            <TextInput
+        <View className="mb-4 rounded-2xl border border-artisan-border bg-white p-4">
+          <Text className="mb-3 text-lg font-bold text-artisan-slate">{t('buyer.delivery')}</Text>
+          <Field label={t('buyer.address')}>
+            <Input
               value={shippingAddress}
               onChangeText={setShippingAddress}
-              placeholder="House/Flat No, Street, City, State, PIN code"
-              placeholderTextColor="#94A3B8"
+              placeholder={t('buyer.addressPh')}
               multiline
               numberOfLines={3}
-              className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3.5 text-sm text-artisan-slate"
             />
-          </View>
-
-          {/* Contact Phone */}
-          <View className="mb-4">
-            <View className="flex-row items-center mb-1.5">
-              <Phone color="#C85A32" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Contact Phone *
-              </Text>
-            </View>
-            <TextInput
+          </Field>
+          <Field label={t('onb.phone')}>
+            <IconInput
+              icon={Phone}
               value={buyerPhone}
               onChangeText={setBuyerPhone}
-              placeholder="+91 98765 43210"
-              placeholderTextColor="#94A3B8"
+              placeholder="98765 43210"
               keyboardType="phone-pad"
-              className="h-14 rounded-2xl border-2 border-slate-200 bg-slate-50 px-3.5 text-base font-semibold text-artisan-slate"
             />
-          </View>
-
-          {/* Delivery Notes */}
-          <View>
-            <View className="flex-row items-center mb-1.5">
-              <FileText color="#64748B" size={14} />
-              <Text className="ml-1 text-xs font-semibold text-slate-600">
-                Special Note / Custom Request (Optional)
-              </Text>
-            </View>
-            <TextInput
+          </Field>
+          <Field label={t('buyer.noteOptional')} className="mb-0">
+            <IconInput
+              icon={MapPin}
               value={buyerNotes}
               onChangeText={setBuyerNotes}
-              placeholder="e.g. Gift wrapping or specific handling instructions"
-              placeholderTextColor="#94A3B8"
-              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 text-xs text-artisan-slate"
+              placeholder={t('buyer.notePh')}
             />
-          </View>
+          </Field>
         </View>
 
-        {/* Transparent Price Breakdown */}
-        <View className="rounded-3xl border border-green-200 bg-green-50 p-5 mb-8">
-          <View className="flex-row items-center mb-3">
-            <ShieldCheck color="#16A34A" size={18} />
-            <Text className="ml-1.5 text-sm font-extrabold text-green-900">
-              Direct-to-Artisan Fair Pricing
-            </Text>
+        <View className="mb-4 rounded-2xl border border-artisan-border bg-white p-4">
+          <Text className="mb-3 text-lg font-bold text-artisan-slate">{t('buyer.howToPay')}</Text>
+          <View style={{ gap: 10 }}>
+            <PayOption
+              icon={Banknote}
+              title={t('buyer.cod')}
+              subtitle={t('buyer.codSub')}
+              selected={paymentMethod === 'COD'}
+              onPress={() => setPaymentMethod('COD')}
+            />
+            <PayOption
+              icon={Smartphone}
+              title={t('buyer.payOnline')}
+              subtitle={t('buyer.payOnlineSub')}
+              selected={paymentMethod === 'ONLINE'}
+              onPress={() => setPaymentMethod('ONLINE')}
+            />
           </View>
+          {paymentMethod === 'ONLINE' ? (
+            <View key="secured" className="mt-3 flex-row items-center">
+              <ShieldCheck color={COLORS.success} size={16} />
+              <Text className="ml-1.5 text-sm text-artisan-muted">{t('buyer.securedBy')}</Text>
+            </View>
+          ) : null}
+        </View>
 
-          <View className="space-y-2 border-b border-green-200 pb-3">
-            <View className="flex-row justify-between">
-              <Text className="text-xs text-green-800">
-                Craft Subtotal ({quantity} unit{quantity > 1 ? 's' : ''}):
-              </Text>
-              <Text className="text-xs font-bold text-green-900">
-                ₹{totalAmount}
-              </Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-xs text-green-800">Artisan Fair Pay:</Text>
-              <Text className="text-xs font-bold text-green-900">100%</Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-xs text-green-800">Platform Facilitation:</Text>
-              <Text className="text-xs font-bold text-green-900">₹0 (Zero Fee)</Text>
-            </View>
+        <View className="rounded-2xl border border-green-200 bg-green-50 p-4">
+          <View className="flex-row justify-between py-1">
+            <Text className="text-base text-green-900">
+              {quantity} × ₹{unitPrice}
+            </Text>
+            <Text className="text-base font-semibold text-green-900">₹{totalAmount}</Text>
           </View>
-
-          <View className="mt-3 flex-row items-center justify-between">
-            <Text className="text-base font-extrabold text-green-950">
-              Total Payable:
-            </Text>
-            <Text className="text-2xl font-black text-green-950">
-              ₹{totalAmount}
-            </Text>
+          <View className="flex-row justify-between py-1">
+            <Text className="text-base text-green-900">{t('buyer.platformFee')}</Text>
+            <Text className="text-base font-semibold text-green-900">₹0</Text>
+          </View>
+          <View className="mt-2 flex-row items-center justify-between border-t border-green-200 pt-2">
+            <Text className="text-lg font-bold text-green-950">{t('common.total')}</Text>
+            <Text className="text-2xl font-bold text-green-950">₹{totalAmount}</Text>
+          </View>
+          <View className="mt-2 flex-row items-center">
+            <ShieldCheck color={COLORS.success} size={18} />
+            <Text className="ml-1.5 text-sm text-green-900">{t('buyer.toArtisan')}</Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Sticky Bottom Place Order Button */}
       <View
-        className="border-t border-artisan-border bg-white px-5 pt-4 shadow-lg"
-        style={{ paddingBottom: Math.max(insets.bottom, 14) }}
+        className="border-t border-artisan-border bg-white px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       >
-        <TouchableOpacity
+        {pendingOnline ? (
+          <View key="pending-note" className="mb-2 flex-row items-center justify-center">
+            <Clock color={COLORS.amber} size={16} />
+            <Text className="ml-1.5 text-sm font-semibold" style={{ color: COLORS.amber }}>
+              {t('pay.pending')}
+            </Text>
+          </View>
+        ) : null}
+        <Button
+          label={
+            verifying
+              ? t('buyer.verifying')
+              : paymentMethod === 'ONLINE'
+              ? t('buyer.payNow', { p: totalAmount })
+              : t('buyer.placeOrder', { p: totalAmount })
+          }
+          icon={paymentMethod === 'ONLINE' ? Smartphone : CheckCircle2}
+          variant="success"
+          loading={submitting || verifying}
           onPress={handlePlaceOrder}
-          disabled={submitting}
-          activeOpacity={0.88}
-          className="h-16 flex-row items-center justify-center rounded-2xl bg-emerald-600 shadow-md active:bg-emerald-700"
-        >
-          {submitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <CheckCircle2 color="#FFFFFF" size={22} />
-              <Text className="ml-2 text-lg font-black text-white">
-                Place Order • ₹{totalAmount}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        />
       </View>
+
+      <Modal
+        visible={showRazorpay && !!pendingOnline}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => handlePaymentDismiss()}
+      >
+        {showRazorpay && pendingOnline ? (
+          <RazorpayCheckout
+            key={pendingOnline.payment.razorpayOrderId}
+            payment={pendingOnline.payment}
+            prefill={{
+              name: session?.user?.user_metadata?.full_name || undefined,
+              email: session?.user?.email || undefined,
+              contact: buyerPhone.trim() || undefined,
+            }}
+            onSuccess={handlePaymentSuccess}
+            onDismiss={() => handlePaymentDismiss()}
+            onFailure={() => handlePaymentDismiss(t('buyer.onlineNotReady'))}
+          />
+        ) : null}
+      </Modal>
     </View>
+  );
+}
+
+function PayOption({
+  icon: Icon,
+  title,
+  subtitle,
+  selected,
+  onPress,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      className="flex-row items-center rounded-2xl p-3"
+      style={{
+        borderWidth: 2,
+        borderColor: selected ? COLORS.primary : COLORS.border,
+        backgroundColor: selected ? '#FFF7F2' : '#FFFFFF',
+      }}
+    >
+      <View
+        className="h-12 w-12 items-center justify-center rounded-xl"
+        style={{ backgroundColor: selected ? COLORS.primary : COLORS.light }}
+      >
+        <Icon color={selected ? '#FFFFFF' : COLORS.primary} size={24} />
+      </View>
+      <View className="ml-3 flex-1">
+        <Text className="text-lg font-bold text-artisan-slate">{title}</Text>
+        <Text className="text-sm text-artisan-muted">{subtitle}</Text>
+      </View>
+      <View
+        className="h-6 w-6 items-center justify-center rounded-full"
+        style={{ borderWidth: 2, borderColor: selected ? COLORS.primary : COLORS.border }}
+      >
+        {selected ? (
+          <View key="dot" className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS.primary }} />
+        ) : null}
+      </View>
+    </TouchableOpacity>
   );
 }

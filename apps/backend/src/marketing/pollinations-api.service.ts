@@ -60,7 +60,7 @@ export class PollinationsApiService {
     try {
       const response = await fetch(pollinationsUrl, {
         headers: {
-          'User-Agent': 'ArtisanPlatform/1.0',
+          'User-Agent': 'KalaVaani/1.0',
         },
       });
 
@@ -126,6 +126,7 @@ export class PollinationsApiService {
         media: {
           orderBy: { createdAt: 'desc' },
         },
+        artisan: { include: { profile: true } },
       },
     });
 
@@ -135,6 +136,9 @@ export class PollinationsApiService {
       );
     }
 
+    const originals = product.media
+      .filter((m) => m.mediaType === MediaType.ORIGINAL_PHOTO)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
     const originalPhoto = product.media.find(
       (m) => m.mediaType === MediaType.ORIGINAL_PHOTO,
     );
@@ -157,8 +161,15 @@ export class PollinationsApiService {
         materials: product.metadata?.material,
         pricing: product.pricing,
       },
+      artisan: {
+        name: product.artisan.profile?.fullName || null,
+        businessName: product.artisan.profile?.businessName || null,
+        region: product.artisan.profile?.region || null,
+        state: product.artisan.profile?.state || null,
+      },
       media: {
-        original: originalPhoto || null,
+        original: originals[0] || originalPhoto || null,
+        originals,
         processed: processedPhoto || null,
         processedPhotos,
         marketingAssets,

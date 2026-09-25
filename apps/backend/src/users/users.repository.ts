@@ -38,16 +38,30 @@ export class UserRepository {
     phone?: string,
     roles: UserRole[] = [UserRole.ARTISAN],
   ): Promise<User> {
+    // Supabase returns "" for users without a phone/email; both columns are unique,
+    // so blank values (or a phone already owned by another user) must not be written.
+    const safeEmail: string | undefined = email?.trim() || undefined;
+    let safePhone: string | undefined = phone?.trim() || undefined;
+    if (safePhone) {
+      const owner = await this.prisma.user.findUnique({
+        where: { phone: safePhone },
+        select: { id: true },
+      });
+      if (owner && owner.id !== id) {
+        safePhone = undefined;
+      }
+    }
+
     return this.prisma.user.upsert({
       where: { id },
       update: {
-        ...(email ? { email } : {}),
-        ...(phone ? { phone } : {}),
+        ...(safeEmail ? { email: safeEmail } : {}),
+        ...(safePhone ? { phone: safePhone } : {}),
       },
       create: {
         id,
-        email,
-        phone,
+        email: safeEmail ?? null,
+        phone: safePhone ?? null,
         roles,
         isActive: true,
       },
@@ -80,6 +94,23 @@ export class UserRepository {
         avatarUrl: data.avatarUrl,
       },
     });
+  }
+
+  /**
+   * Update the phone on the user row (null clears it)
+   */
+  async updateUserPhone(userId: string, phone: string | null): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { phone },
+    });
+  }
+
+  /**
+   * Find the user that owns a phone number, if any
+   */
+  async findByPhone(phone: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { phone } });
   }
 
   /**

@@ -1,11 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
@@ -15,15 +13,16 @@ import {
   Plus,
   Package,
   Camera,
-  Sparkles,
   Trash2,
-  PauseCircle,
+  EyeOff,
   Play,
   Eye,
 } from 'lucide-react-native';
 import { getApiBaseUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { supabase } from '../../src/lib/supabase';
+import { Text, Button, EmptyState, Loading, StatusChip, COLORS } from '../../src/components/ui';
+import { useT } from '../../src/i18n';
 
 interface CraftItem {
   id: string;
@@ -39,6 +38,7 @@ interface CraftItem {
 
 export default function CatalogScreen() {
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { role, session, isLoading } = useAuthStore();
   const [crafts, setCrafts] = useState<CraftItem[]>([]);
@@ -152,8 +152,8 @@ export default function CatalogScreen() {
         prev.map((c) => (c.id === craft.id ? { ...c, status: craft.status } : c)),
       );
       Alert.alert(
-        'त्रुटि (Error)',
-        `Could not perform "${actionLabel}". Please check your internet connection.`,
+                t('catalog.failedTitle'),
+        t('common.checkInternet'),
       );
     }
   };
@@ -161,12 +161,12 @@ export default function CatalogScreen() {
   // Delete Craft permanently
   const handleDeleteCraft = (craft: CraftItem) => {
     Alert.alert(
-      'Delete Craft? • शिल्प हटाएं?',
-      `Are you sure you want to permanently delete "${craft.title}"? Buyers will no longer be able to find or order this craft.`,
+            t('catalog.deleteTitle'),
+      t('catalog.deleteMsg', { title: craft.title }),
       [
-        { text: 'Cancel / रद्द', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Delete / हटाएं',
+          text: t('catalog.deleteYes'),
           style: 'destructive',
           onPress: async () => {
             setCrafts((prev) => prev.filter((c) => c.id !== craft.id));
@@ -190,7 +190,7 @@ export default function CatalogScreen() {
               }
             } catch (err: any) {
               fetchCrafts(true);
-              Alert.alert('Error', 'Could not delete craft. Please try again.');
+              Alert.alert(t('catalog.deleteFailed'), t('common.checkInternet'));
             }
           },
         },
@@ -203,116 +203,68 @@ export default function CatalogScreen() {
     return c.status === selectedFilter;
   });
 
+  const filters: { key: typeof selectedFilter; label: string }[] = [
+    { key: 'ALL', label: t('catalog.all', { n: crafts.length }) },
+    { key: 'PUBLISHED', label: t('catalog.live', { n: crafts.filter((c) => c.status === 'PUBLISHED').length }) },
+    { key: 'IN_REVIEW', label: t('catalog.review', { n: crafts.filter((c) => c.status === 'IN_REVIEW').length }) },
+    { key: 'ARCHIVED', label: t('catalog.hidden', { n: crafts.filter((c) => c.status === 'ARCHIVED').length }) },
+  ];
+
   return (
     <View
       className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) + 10 }}
+      style={{ paddingTop: Math.max(insets.top, 20) + 8 }}
     >
-      {/* Top Header */}
-      <View className="border-b border-artisan-border bg-white px-5 pt-2 pb-4">
-        <View className="flex-row items-center justify-between">
+      {/* Header */}
+      <View className="border-b border-artisan-border bg-white px-4 pb-3 pt-1">
+        <View className="flex-row items-center">
           <View className="flex-1 pr-3">
-            <Text className="text-2xl font-black text-artisan-slate">
-              My Crafts • मेरा कैटलॉग
-            </Text>
-            <Text className="text-xs font-semibold text-artisan-muted mt-0.5">
-              Only your handmade items appear here ({crafts.length} total)
-            </Text>
+            <Text className="text-2xl font-bold text-artisan-slate">{t('tabs.myItems')}</Text>
           </View>
-
           <TouchableOpacity
             onPress={() => router.push('/(app)/capture/image')}
             activeOpacity={0.8}
-            className="flex-row items-center rounded-2xl bg-artisan-primary px-3.5 py-2.5 shadow-sm active:bg-artisan-dark"
+            className="h-12 flex-row items-center rounded-xl bg-artisan-primary px-4"
           >
-            <Camera color="#FFFFFF" size={16} />
-            <Text className="ml-1.5 text-xs font-black text-white">
-              + New Craft
-            </Text>
+            <Plus color="#FFFFFF" size={22} />
+            <Text className="ml-1 text-base font-bold text-white">{t('catalog.add')}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Filter Pills */}
-        <View className="mt-4 flex-row flex-wrap gap-y-2">
-          <TouchableOpacity
-            onPress={() => setSelectedFilter('ALL')}
-            activeOpacity={0.8}
-            className={`rounded-xl px-3.5 py-1.5 mr-2 border ${
-              selectedFilter === 'ALL'
-                ? 'bg-artisan-primary border-artisan-primary'
-                : 'bg-slate-100 border-slate-200'
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                selectedFilter === 'ALL' ? 'text-white' : 'text-slate-600'
-              }`}
-            >
-              All ({crafts.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedFilter('PUBLISHED')}
-            activeOpacity={0.8}
-            className={`rounded-xl px-3.5 py-1.5 mr-2 border ${
-              selectedFilter === 'PUBLISHED'
-                ? 'bg-artisan-primary border-artisan-primary'
-                : 'bg-slate-100 border-slate-200'
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                selectedFilter === 'PUBLISHED' ? 'text-white' : 'text-slate-600'
-              }`}
-            >
-              Live / सक्रिय ({crafts.filter((c) => c.status === 'PUBLISHED').length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedFilter('ARCHIVED')}
-            activeOpacity={0.8}
-            className={`rounded-xl px-3.5 py-1.5 mr-2 border ${
-              selectedFilter === 'ARCHIVED'
-                ? 'bg-artisan-primary border-artisan-primary'
-                : 'bg-slate-100 border-slate-200'
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                selectedFilter === 'ARCHIVED' ? 'text-white' : 'text-slate-600'
-              }`}
-            >
-              Discontinued / बंद ({crafts.filter((c) => c.status === 'ARCHIVED').length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedFilter('IN_REVIEW')}
-            activeOpacity={0.8}
-            className={`rounded-xl px-3.5 py-1.5 border ${
-              selectedFilter === 'IN_REVIEW'
-                ? 'bg-artisan-primary border-artisan-primary'
-                : 'bg-slate-100 border-slate-200'
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                selectedFilter === 'IN_REVIEW' ? 'text-white' : 'text-slate-600'
-              }`}
-            >
-              In Review ({crafts.filter((c) => c.status === 'IN_REVIEW').length})
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mt-3"
+          contentContainerStyle={{ gap: 8 }}
+        >
+          {filters.map((f) => {
+            const active = selectedFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                onPress={() => setSelectedFilter(f.key)}
+                activeOpacity={0.8}
+                className="h-11 justify-center rounded-full px-4"
+                style={{
+                  backgroundColor: active ? COLORS.primary : '#F5F5F4',
+                  borderWidth: 1,
+                  borderColor: active ? COLORS.primary : COLORS.border,
+                }}
+              >
+                <Text className="text-base font-semibold" style={{ color: active ? '#FFFFFF' : COLORS.ink }}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         className="flex-1"
         contentContainerStyle={{
-          paddingHorizontal: 18,
+          paddingHorizontal: 16,
           paddingTop: 16,
           paddingBottom: 110,
           flexGrow: 1,
@@ -322,95 +274,46 @@ export default function CatalogScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#C85A32']}
-            tintColor="#C85A32"
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
           />
         }
       >
-        {/* Fast Action Banner: AI Studio Upload */}
-        <TouchableOpacity
-          onPress={() => router.push('/(app)/capture/image')}
-          activeOpacity={0.85}
-          className="mb-5 flex-row items-center rounded-3xl bg-orange-50 border-2 border-artisan-primary/30 p-4 shadow-sm"
-        >
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-artisan-primary">
-            <Sparkles color="#FFFFFF" size={24} />
-          </View>
-          <View className="ml-3.5 flex-1 pr-1">
-            <View className="flex-row items-center">
-              <Text className="text-base font-extrabold text-artisan-slate">
-                Smart AI Cataloging
-              </Text>
-              <View className="ml-2 rounded bg-amber-500 px-1.5 py-0.5">
-                <Text className="text-[9px] font-black text-white uppercase tracking-wider">
-                  Voice + Camera
-                </Text>
-              </View>
-            </View>
-            <Text className="text-xs font-bold text-artisan-amber mt-0.5">
-              फोटो खींचें और बोलकर विवरण बनाएं
-            </Text>
-          </View>
-          <Plus color="#C85A32" size={20} />
-        </TouchableOpacity>
-
-        {/* Crafts List */}
         {loading && crafts.length === 0 ? (
-          <View className="py-20 items-center justify-center">
-            <ActivityIndicator size="large" color="#C85A32" />
-            <Text className="mt-3 text-sm font-semibold text-artisan-muted">
-              Loading your crafts... / आपके उत्पाद लोड हो रहे हैं...
-            </Text>
+          <View key="loading">
+            <Loading />
           </View>
         ) : filteredCrafts.length === 0 ? (
-          <View className="rounded-3xl border border-artisan-border bg-white p-8 items-center text-center shadow-sm my-4">
-            <View className="h-16 w-16 items-center justify-center rounded-2xl bg-orange-100">
-              <Package color="#C85A32" size={32} />
-            </View>
-            <Text className="mt-4 text-lg font-bold text-artisan-slate">
-              {selectedFilter === 'ALL'
-                ? 'You Have No Crafts Listed Yet'
-                : `No ${selectedFilter} Crafts Found`}
-            </Text>
-            <Text className="mt-1 text-center text-xs text-artisan-muted leading-5">
-              Start by photographing your handmade art. Only products you upload will appear in this workspace.
-            </Text>
-            <TouchableOpacity
-              onPress={() => router.push('/(app)/capture/image')}
-              activeOpacity={0.85}
-              className="mt-5 rounded-2xl bg-artisan-primary px-5 py-3 shadow-md"
-            >
-              <Text className="text-sm font-bold text-white">
-                Catalog Your First Craft / पहला शिल्प जोड़ें
-              </Text>
-            </TouchableOpacity>
+          <View key="empty">
+            <EmptyState
+              icon={Package}
+              title={selectedFilter === 'ALL' ? t('catalog.emptyAll') : t('catalog.emptyFilter')}
+              action={
+                <Button
+                  label={t('capture.takePhoto')}
+                  icon={Camera}
+                  onPress={() => router.push('/(app)/capture/image')}
+                />
+              }
+            />
           </View>
         ) : (
-          <View className="space-y-4">
+          <View key="list">
             {filteredCrafts.map((craft) => {
               const isArchived = craft.status === 'ARCHIVED';
-              const isPublished = craft.status === 'PUBLISHED';
 
               return (
                 <View
                   key={craft.id}
-                  className={`rounded-3xl border bg-white p-4 shadow-sm mb-4 ${
-                    isArchived
-                      ? 'border-slate-200 opacity-90'
-                      : 'border-artisan-border'
-                  }`}
+                  className="mb-3 rounded-2xl border border-artisan-border bg-white p-3"
+                  style={{ opacity: isArchived ? 0.85 : 1 }}
                 >
-                  {/* Top: Image & Info */}
-                  <View className="flex-row items-center">
-                    {/* Thumbnail */}
-                    <TouchableOpacity
-                      onPress={() =>
-                        router.push(`/(app)/product/${craft.id}` as any)
-                      }
-                      activeOpacity={0.85}
-                      className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200"
-                    >
-
+                  <TouchableOpacity
+                    onPress={() => router.push(`/(app)/product/${craft.id}` as any)}
+                    activeOpacity={0.85}
+                    className="flex-row"
+                  >
+                    <View className="h-24 w-24 overflow-hidden rounded-xl bg-stone-100">
                       {craft.thumbnailUrl ? (
                         <Image
                           source={{ uri: craft.thumbnailUrl }}
@@ -418,128 +321,47 @@ export default function CatalogScreen() {
                           resizeMode="cover"
                         />
                       ) : (
-                        <View className="h-full w-full items-center justify-center bg-orange-50">
-                          <Package color="#C85A32" size={28} />
+                        <View className="h-full w-full items-center justify-center bg-artisan-light">
+                          <Package color={COLORS.primary} size={32} />
                         </View>
                       )}
-                    </TouchableOpacity>
+                    </View>
 
-                    {/* Details */}
-                    <View className="ml-3.5 flex-1 justify-between py-0.5">
-                      <View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-[11px] font-bold uppercase tracking-wider text-artisan-primary">
-                            {craft.craftType || craft.category || 'Craft Item'}
-                          </Text>
-
-                          {/* Status Badge */}
-                          <View
-                            className={`rounded-full px-2.5 py-0.5 border ${
-                              isPublished
-                                ? 'bg-emerald-50 border-emerald-300'
-                                : isArchived
-                                  ? 'bg-slate-100 border-slate-300'
-                                  : 'bg-amber-50 border-amber-300'
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] font-black ${
-                                isPublished
-                                  ? 'text-emerald-700'
-                                  : isArchived
-                                    ? 'text-slate-600'
-                                    : 'text-amber-800'
-                              }`}
-                            >
-                              {isPublished
-                                ? 'Live / सक्रिय'
-                                : isArchived
-                                  ? 'Discontinued / बंद'
-                                  : 'In Review'}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <Text
-                          className="mt-1 text-base font-extrabold text-artisan-slate"
-                          numberOfLines={1}
-                        >
-                          {craft.title}
-                        </Text>
-                      </View>
-
-                      {/* Price & Max Order Limit */}
-                      <View className="mt-2 flex-row items-center justify-between">
-                        <Text className="text-base font-black text-green-700">
+                    <View className="ml-3 flex-1">
+                      <StatusChip status={craft.status} />
+                      <Text className="mt-1 text-lg font-bold text-artisan-slate" numberOfLines={2}>
+                        {craft.title}
+                      </Text>
+                      <View className="mt-1 flex-row items-baseline">
+                        <Text className="text-2xl font-bold text-artisan-success">
                           ₹{craft.price || 499}
                         </Text>
-
-                        <View className="rounded-lg bg-orange-50 px-2 py-0.5 border border-orange-200">
-                          <Text className="text-[10px] font-bold text-artisan-primary">
-                            Max Limit: {craft.baseStock || 10} units
-                          </Text>
-                        </View>
+                        <Text className="ml-2 text-sm text-artisan-muted">
+                          {t('catalog.limit', { n: craft.baseStock || 10 })}
+                        </Text>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
-                  {/* Bottom Actions: Preview, Discontinue/Re-list, Delete */}
-                  <View className="mt-3 pt-3 border-t border-slate-100 flex-row flex-wrap items-center justify-between gap-2">
-                    {/* View Preview Button (Artisan Studio View) */}
-                    <TouchableOpacity
-                      onPress={() =>
-                        router.push(`/(app)/product/${craft.id}` as any)
-                      }
-                      activeOpacity={0.7}
-                      className="flex-row items-center py-1 px-2"
-                    >
-                      <Eye color="#64748B" size={14} />
-                      <Text className="ml-1 text-xs font-bold text-slate-600">
-                        View Studio / विवरण
-                      </Text>
-                    </TouchableOpacity>
-
-
-                    <View className="flex-row flex-wrap items-center gap-2">
-                      {/* Discontinue / Re-list Button */}
-                      <TouchableOpacity
-                        onPress={() => handleToggleStatus(craft)}
-                        activeOpacity={0.8}
-                        className={`flex-row items-center rounded-xl px-3 py-1.5 border ${
-                          isArchived
-                            ? 'bg-emerald-50 border-emerald-300'
-                            : 'bg-amber-50 border-amber-300'
-                        }`}
-                      >
-                        {isArchived ? (
-                          <>
-                            <Play color="#059669" size={13} />
-                            <Text className="ml-1.5 text-xs font-black text-emerald-800">
-                              Re-list / चालू करें
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            <PauseCircle color="#D97706" size={13} />
-                            <Text className="ml-1.5 text-xs font-black text-amber-800">
-                              Discontinue / बंद करें
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-
-                      {/* Delete Button */}
-                      <TouchableOpacity
-                        onPress={() => handleDeleteCraft(craft)}
-                        activeOpacity={0.8}
-                        className="flex-row items-center rounded-xl bg-red-50 border border-red-200 px-3 py-1.5"
-                      >
-                        <Trash2 color="#EF4444" size={13} />
-                        <Text className="ml-1 text-xs font-black text-red-600">
-                          Delete
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                  <View className="mt-3 flex-row border-t border-artisan-border pt-3" style={{ gap: 8 }}>
+                    <ActionButton
+                      icon={Eye}
+                      label={t('catalog.view')}
+                      color={COLORS.ink}
+                      onPress={() => router.push(`/(app)/product/${craft.id}` as any)}
+                    />
+                    <ActionButton
+                      icon={isArchived ? Play : EyeOff}
+                      label={isArchived ? t('catalog.sellAgain') : t('catalog.hide')}
+                      color={isArchived ? COLORS.success : COLORS.amber}
+                      onPress={() => handleToggleStatus(craft)}
+                    />
+                    <ActionButton
+                      icon={Trash2}
+                      label={t('catalog.delete')}
+                      color={COLORS.error}
+                      onPress={() => handleDeleteCraft(craft)}
+                    />
                   </View>
                 </View>
               );
@@ -548,5 +370,31 @@ export default function CatalogScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+  color,
+  onPress,
+}: {
+  icon: typeof Eye;
+  label: string;
+  color: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      className="h-12 flex-1 flex-row items-center justify-center rounded-xl bg-stone-50"
+      style={{ borderWidth: 1, borderColor: COLORS.border }}
+    >
+      <Icon color={color} size={20} />
+      <Text className="ml-1.5 text-base font-bold" style={{ color }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }

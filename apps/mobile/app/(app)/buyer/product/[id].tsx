@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   Image,
   TouchableOpacity,
-  ActivityIndicator,
   Linking,
   Share,
   Alert,
   Dimensions,
-  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,19 +16,15 @@ import {
   ArrowLeft,
   Share2,
   MapPin,
-  Sparkles,
   MessageCircle,
   Phone,
   ShieldCheck,
-  Tag,
-  Clock,
-  Palette,
   ShoppingBag,
-  Layers,
-  Heart,
   Building2,
 } from 'lucide-react-native';
 import { getApiBaseUrl } from '../../../../src/lib/api';
+import { Text, Button, ScreenHeader, EmptyState, Loading, COLORS } from '../../../../src/components/ui';
+import { useT } from '../../../../src/i18n';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,6 +52,8 @@ interface ProductDetail {
     processedPhotoUrl: string | null;
     processedPhotos?: Array<{ id: string; url: string; mediaType?: string; metadata?: any }>;
     originalPhotoUrl: string | null;
+    /** The artisan's own photos, main photo first */
+    originalPhotos?: Array<{ id: string; url: string }>;
     marketingAssets: Array<{ id: string; url: string }>;
     all: Array<{ id: string; url: string; mediaType: string }>;
   };
@@ -78,6 +73,7 @@ interface ProductDetail {
 export default function BuyerProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { role, isLoading } = useAuthStore();
   const isFetchingRef = React.useRef(false);
@@ -92,6 +88,7 @@ export default function BuyerProductDetailScreen() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const galleryRef = React.useRef<ScrollView>(null);
 
   const getBaseApiUrl = () => {
     return getApiBaseUrl();
@@ -114,7 +111,7 @@ export default function BuyerProductDetailScreen() {
           const data: ProductDetail = await res.json();
           setProduct(data);
         } else {
-          Alert.alert('Notice', 'Could not load craft details.');
+          Alert.alert(t('common.couldNotLoad'), t('common.checkInternet'));
         }
       } catch (err) {
         console.warn('Failed to fetch product details:', err);
@@ -148,7 +145,7 @@ export default function BuyerProductDetailScreen() {
     if (!product) return;
     const phone = product.artisan?.phone || '+919876543210';
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const message = `Namaste! I saw your handcrafted "${product.title}" on the KalaSangam platform. I would like to inquire about ordering.`;
+    const message = `Namaste! I saw your handcrafted "${product.title}" on the Kala Vaani platform. I would like to inquire about ordering.`;
     const url = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
 
     Linking.canOpenURL(url)
@@ -161,7 +158,7 @@ export default function BuyerProductDetailScreen() {
         }
       })
       .catch(() => {
-        Alert.alert('Contact Artisan', `Artisan Phone: ${phone}`);
+        Alert.alert(t('buyer.madeBy'), phone);
       });
   };
 
@@ -173,39 +170,29 @@ export default function BuyerProductDetailScreen() {
 
   if (loading) {
     return (
-      <View
-        className="flex-1 items-center justify-center bg-artisan-canvas"
-        style={{ paddingTop: Math.max(insets.top, 20) }}
-      >
-        <ActivityIndicator size="large" color="#C85A32" />
-        <Text className="mt-4 text-base font-bold text-artisan-slate">
-          Loading Artisan Craft...
-        </Text>
+      <View className="flex-1 bg-artisan-canvas">
+        <ScreenHeader title={t('buyer.item')} onBack={() => router.back()} />
+        <Loading />
       </View>
     );
   }
 
   if (!product) {
     return (
-      <View
-        className="flex-1 items-center justify-center bg-artisan-canvas p-6"
-        style={{ paddingTop: Math.max(insets.top, 20) }}
-      >
-        <ShoppingBag color="#C85A32" size={48} />
-        <Text className="mt-4 text-xl font-bold text-artisan-slate">
-          Craft Not Found
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="mt-6 rounded-2xl bg-artisan-primary px-6 py-3"
-        >
-          <Text className="text-base font-bold text-white">Go Back</Text>
-        </TouchableOpacity>
+      <View className="flex-1 bg-artisan-canvas">
+        <ScreenHeader title={t('buyer.item')} onBack={() => router.back()} />
+        <View className="flex-1 justify-center p-4">
+          <EmptyState
+            icon={ShoppingBag}
+            title={t('buyer.itemNotFound')}
+            action={<Button label={t('common.goBack')} icon={ArrowLeft} onPress={() => router.back()} />}
+          />
+        </View>
       </View>
     );
   }
 
-  // Aggregate images for gallery view: Processed Studio -> Marketing AI -> Original
+  // Gallery: the artisan's real photos first -> studio photos -> older posters
   const galleryImages: Array<{ url: string; label: string; tag: string }> = [];
   const uniqueUrls = new Set<string>();
 
@@ -215,332 +202,238 @@ export default function BuyerProductDetailScreen() {
     galleryImages.push({ url, label, tag });
   };
 
+  (product.media.originalPhotos ?? []).forEach((photo, idx) => {
+    addImageToGallery(photo.url, `Photo ${idx + 1}`, 'Original');
+  });
+  addImageToGallery(product.media.originalPhotoUrl, 'Original', 'Original');
+
   if (product.media.processedPhotos && product.media.processedPhotos.length > 0) {
     product.media.processedPhotos.forEach((photo, idx) => {
-      const angle = photo.metadata?.angle || '';
-      let label = `Studio Angle ${idx + 1}`;
-      let tag = 'Studio Shot';
-      if (angle === 'SIDE_VIEW') {
-        label = '45° Side View';
-        tag = 'Studio Perspective';
-      } else if (angle === 'TOP_DOWN') {
-        label = 'Top-Down Flat Lay';
-        tag = 'Overhead View';
-      } else if (angle === 'CLOSE_UP') {
-        label = 'Macro Detail';
-        tag = 'Handcraft Texture';
-      } else if (angle === 'FRONT_CLEAN') {
-        label = 'Clean Studio';
-        tag = 'Studio Cutout';
-      }
-      addImageToGallery(photo.url, label, tag);
+      addImageToGallery(photo.url, `Photo ${idx + 1}`, 'Studio');
     });
   } else if (product.media.processedPhotoUrl) {
-    addImageToGallery(product.media.processedPhotoUrl, 'Studio Cleaned', 'Background Removed');
+    addImageToGallery(product.media.processedPhotoUrl, 'Studio', 'Studio');
   }
 
   product.media.marketingAssets.forEach((asset, idx) => {
-    addImageToGallery(asset.url, `AI Scene ${idx + 1}`, 'Lifestyle Poster');
+    addImageToGallery(asset.url, `Scene ${idx + 1}`, 'Poster');
   });
 
-  if (product.media.originalPhotoUrl) {
-    addImageToGallery(product.media.originalPhotoUrl, 'Original Photo', 'Authentic Workshop');
-  }
-
-  // Fallback if none of the above are categorized
   if (galleryImages.length === 0 && product.media.thumbnail) {
-    addImageToGallery(product.media.thumbnail, 'Craft View', 'Handmade Item');
+    addImageToGallery(product.media.thumbnail, 'Photo', 'Photo');
   }
 
   const activeImage = galleryImages[selectedImageIndex] || galleryImages[0];
 
   return (
-    <View
-      className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) }}
-    >
-      {/* Top Navigation Bar */}
-      <View className="flex-row items-center justify-between border-b border-artisan-border bg-white px-4 py-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-        >
-          <ArrowLeft color="#1E293B" size={22} />
-        </TouchableOpacity>
+    <View className="flex-1 bg-artisan-canvas">
+      <ScreenHeader
+        title={product.title}
+        onBack={() => router.back()}
+        right={
+          <TouchableOpacity
+            onPress={handleShare}
+            accessibilityLabel="Share"
+            className="h-12 w-12 items-center justify-center rounded-xl bg-artisan-light"
+          >
+            <Share2 color={COLORS.ink} size={22} />
+          </TouchableOpacity>
+        }
+      />
 
-        <Text
-          className="mx-2 flex-1 text-center text-base font-extrabold text-artisan-slate"
-          numberOfLines={1}
-        >
-          {product.title}
-        </Text>
-
-        <TouchableOpacity
-          onPress={handleShare}
-          className="h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-        >
-          <Share2 color="#64748B" size={20} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        className="flex-1"
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Gallery Image Display */}
-        <View className="relative w-full bg-slate-900" style={{ height: SCREEN_WIDTH * 0.9 }}>
+      <ScrollView showsVerticalScrollIndicator={false} className="flex-1" keyboardShouldPersistTaps="handled">
+        {/* Main image — swipe for more photos */}
+        <View className="w-full bg-stone-100" style={{ height: SCREEN_WIDTH * 0.9 }}>
           {activeImage ? (
-            <Image
-              source={{ uri: activeImage.url }}
-              className="h-full w-full"
-              resizeMode="cover"
-            />
+            <View key="gallery">
+              <ScrollView
+                ref={galleryRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) =>
+                  setSelectedImageIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))
+                }
+              >
+                {galleryImages.map((item, index) => (
+                  <Image
+                    key={item.url}
+                    source={{ uri: item.url }}
+                    style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH * 0.9 }}
+                    resizeMode="contain"
+                  />
+                ))}
+              </ScrollView>
+              {galleryImages.length > 1 ? (
+                <View
+                  key="counter"
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: 12,
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    borderRadius: 999,
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text className="text-sm font-bold" style={{ color: '#FFFFFF' }}>
+                    {selectedImageIndex + 1} / {galleryImages.length}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           ) : (
-            <View className="h-full w-full items-center justify-center bg-orange-50">
-              <ShoppingBag color="#C85A32" size={64} />
+            <View className="h-full w-full items-center justify-center bg-artisan-light">
+              <ShoppingBag color={COLORS.primary} size={64} />
             </View>
           )}
-
-          {/* Active Image Tag */}
-          {Boolean(activeImage?.tag) ? (
-            <View className="absolute top-4 left-4 rounded-full bg-slate-900/80 px-3 py-1.5 flex-row items-center">
-              <Sparkles color="#FBBF24" size={13} />
-              <Text className="ml-1.5 text-xs font-bold text-white">
-                {activeImage.tag}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Authentic Guarantee Badge */}
-          <View className="absolute bottom-4 right-4 rounded-full bg-emerald-600/90 px-3 py-1 flex-row items-center">
-            <ShieldCheck color="#FFFFFF" size={14} />
-            <Text className="ml-1 text-xs font-bold text-white">
-              100% Artisan Verified
-            </Text>
-          </View>
         </View>
 
-        {/* Gallery Thumbnails Carousel */}
+        {/* Thumbnails */}
         {galleryImages.length > 1 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            className="border-b border-artisan-border bg-white px-4 py-3"
+            className="border-b border-artisan-border bg-white"
+            contentContainerStyle={{ padding: 12, gap: 10 }}
           >
             {galleryImages.map((item, index) => {
               const isSelected = index === selectedImageIndex;
               return (
                 <TouchableOpacity
                   key={index}
-                  onPress={() => setSelectedImageIndex(index)}
+                  onPress={() => {
+                    setSelectedImageIndex(index);
+                    galleryRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+                  }}
                   activeOpacity={0.8}
-                  className={`mr-3 overflow-hidden rounded-2xl border-2 ${
-                    isSelected ? 'border-artisan-primary shadow-sm' : 'border-slate-200'
-                  }`}
-                  style={{ width: 70, height: 70 }}
+                  className="overflow-hidden rounded-xl"
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderWidth: 3,
+                    borderColor: isSelected ? COLORS.primary : 'transparent',
+                  }}
                 >
-                  <Image
-                    source={{ uri: item.url }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
+                  <Image source={{ uri: item.url }} className="h-full w-full" resizeMode="cover" />
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
         ) : null}
 
-        {/* Product Details Section */}
-        <View className="bg-white p-5 border-b border-artisan-border">
-          {/* Tags */}
-          <View className="flex-row items-center flex-wrap gap-2">
-            <View className="rounded-full bg-orange-100 px-3 py-1">
-              <Text className="text-xs font-bold text-artisan-primary">
-                {product.craftType || product.category || 'Handmade Craft'}
-              </Text>
+        {/* Title + price */}
+        <View className="border-b border-artisan-border bg-white p-4">
+          <Text className="text-base font-semibold text-artisan-primary">
+            {product.craftType || product.category || 'Handmade'}
+            {product.culturalOrigin ? ` · ${product.culturalOrigin}` : ''}
+          </Text>
+          <Text className="mt-1 text-2xl font-bold text-artisan-slate">{product.title}</Text>
+          <View className="mt-2 flex-row items-center">
+            <Text className="text-3xl font-bold text-artisan-success">
+              ₹{product.pricing.recommendedPrice || 499}
+            </Text>
+            <View className="ml-3 flex-row items-center rounded-full bg-green-50 px-3 py-1">
+              <ShieldCheck color={COLORS.success} size={16} />
+              <Text className="ml-1 text-sm font-bold text-artisan-success">{t('buyer.fairPrice')}</Text>
             </View>
-
-            {Boolean(product.culturalOrigin) ? (
-              <View className="rounded-full bg-slate-100 px-3 py-1">
-                <Text className="text-xs font-semibold text-slate-700">
-                  {product.culturalOrigin}
-                </Text>
-              </View>
-            ) : null}
           </View>
 
-          {/* Title & Price */}
-          <Text className="mt-3 text-2xl font-extrabold text-artisan-slate leading-tight">
-            {product.title}
+          <Text className="mt-4 text-base leading-6 text-artisan-slate">
+            {product.story || product.description || t('buyer.handmadeDefault')}
           </Text>
 
-          <View className="mt-4 flex-row items-center justify-between rounded-2xl bg-green-50 p-4 border border-green-200">
-            <View>
-              <Text className="text-xs font-semibold text-green-700">
-                Direct Fair-Trade Artisan Price
-              </Text>
-              <Text className="text-3xl font-black text-green-900 mt-0.5">
-                ₹{product.pricing.recommendedPrice || 499}
-              </Text>
-            </View>
-            <View className="items-end">
-              <View className="flex-row items-center rounded-full bg-white px-2.5 py-1 border border-green-300">
-                <ShieldCheck color="#16A34A" size={14} />
-                <Text className="ml-1 text-xs font-bold text-green-800">
-                  Fair Wage
-                </Text>
-              </View>
-              {Boolean(product.pricing.labourHours && Number(product.pricing.labourHours) > 0) ? (
-                <Text className="mt-1 text-[11px] text-green-700">
-                  ~{product.pricing.labourHours} hrs craftsmanship
-                </Text>
+          {product.material || product.pattern ? (
+            <View className="mt-4 rounded-xl bg-stone-50 p-3">
+              {product.material ? (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-base text-artisan-muted">{t('buyer.material')}</Text>
+                  <Text className="ml-4 flex-1 text-right text-base font-semibold text-artisan-slate">
+                    {product.material}
+                  </Text>
+                </View>
               ) : null}
-            </View>
-          </View>
-
-          {/* Story & Description */}
-          <View className="mt-5">
-            <Text className="text-sm font-bold uppercase tracking-wider text-artisan-muted">
-              Artisan Craft Story • शिल्प कथा
-            </Text>
-            <Text className="mt-2 text-base text-slate-700 leading-6">
-              {product.story || product.description || 'Authentic artisan crafted item.'}
-            </Text>
-          </View>
-
-          {/* Material & Specs */}
-          {Boolean(product.material || product.pattern) ? (
-            <View className="mt-5 rounded-2xl bg-slate-50 p-4 border border-artisan-border">
-              <Text className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Specifications & Materials
-              </Text>
-              <View className="mt-3 space-y-2">
-                {Boolean(product.material) ? (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-sm text-slate-600">Material:</Text>
-                    <Text className="text-sm font-bold text-artisan-slate">
-                      {product.material}
-                    </Text>
-                  </View>
-                ) : null}
-                {Boolean(product.pattern) ? (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-sm text-slate-600">Pattern/Style:</Text>
-                    <Text className="text-sm font-bold text-artisan-slate">
-                      {product.pattern}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+              {product.pattern ? (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-base text-artisan-muted">{t('buyer.style')}</Text>
+                  <Text className="ml-4 flex-1 text-right text-base font-semibold text-artisan-slate">
+                    {product.pattern}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
         </View>
 
-        {/* Meet the Artisan Card */}
-        <View className="bg-white p-5 mt-3 border-b border-artisan-border">
-          <Text className="text-sm font-bold uppercase tracking-wider text-artisan-muted">
-            Meet the Maker • कारीगर परिचय
-          </Text>
-
+        {/* Maker */}
+        <View className="mt-3 border-b border-artisan-border bg-white p-4">
+          <Text className="text-lg font-bold text-artisan-slate">{t('buyer.madeBy')}</Text>
           <View className="mt-3 flex-row items-center">
-            <View className="h-16 w-16 items-center justify-center rounded-2xl bg-orange-100 border-2 border-orange-300">
-              <Text className="text-2xl font-black text-artisan-primary">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-artisan-light">
+              <Text className="text-2xl font-bold text-artisan-primary">
                 {(product.artisan?.name || 'A').charAt(0).toUpperCase()}
               </Text>
             </View>
-            <View className="ml-4 flex-1">
+            <View className="ml-3 flex-1">
               <Text className="text-lg font-bold text-artisan-slate">
-                {product.artisan?.name || 'Traditional Artisan'}
+                {product.artisan?.name || 'Artisan'}
               </Text>
-              {Boolean(product.artisan?.businessName) ? (
-                <Text className="text-xs font-semibold text-artisan-muted">
-                  {product.artisan.businessName}
-                </Text>
-              ) : null}
-              <View className="mt-1 flex-row items-center">
-                <MapPin color="#C85A32" size={13} />
-                <Text className="ml-1 text-xs font-medium text-slate-600">
-                  {product.artisan?.region || 'Heritage Cluster'}
-                  {Boolean(product.artisan?.state) ? `, ${product.artisan.state}` : ''}
+              <View className="flex-row items-center">
+                <MapPin color={COLORS.primary} size={15} />
+                <Text className="ml-1 text-base text-artisan-muted">
+                  {product.artisan?.region || 'India'}
+                  {product.artisan?.state ? `, ${product.artisan.state}` : ''}
                 </Text>
               </View>
             </View>
           </View>
-
-          {Boolean(product.artisan?.bio) ? (
-            <Text className="mt-3 text-xs italic text-slate-600 leading-5">
-              "{product.artisan.bio}"
-            </Text>
+          {product.artisan?.bio ? (
+            <Text className="mt-3 text-base text-artisan-muted">{product.artisan.bio}</Text>
           ) : null}
+
+          <View className="mt-4 flex-row" style={{ gap: 10 }}>
+            <TouchableOpacity
+              onPress={handleContactWhatsApp}
+              className="h-12 flex-1 flex-row items-center justify-center rounded-xl border-2 border-green-600 bg-green-50"
+            >
+              <MessageCircle color={COLORS.success} size={20} />
+              <Text className="ml-2 text-base font-bold text-artisan-success">WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleCallArtisan}
+              className="h-12 flex-1 flex-row items-center justify-center rounded-xl border-2 border-artisan-border bg-white"
+            >
+              <Phone color={COLORS.ink} size={20} />
+              <Text className="ml-2 text-base font-bold text-artisan-slate">{t('orders.call')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View className="h-28" />
+        <View className="h-8" />
       </ScrollView>
 
-      {/* Bottom Sticky Action Bar */}
+      {/* Sticky actions */}
       <View
-        className="border-t border-artisan-border bg-white px-5 pt-3 shadow-lg"
-        style={{ paddingBottom: Math.max(insets.bottom, 14) }}
+        className="flex-row border-t border-artisan-border bg-white px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 12), gap: 10 }}
       >
-        {/* Primary Buy & Wholesale Row */}
-        <View className="flex-row items-center mb-2.5">
-          <TouchableOpacity
-            onPress={() =>
-              router.push(
-                `/(app)/buyer/checkout?productId=${product.id}` as any,
-              )
-            }
-            activeOpacity={0.88}
-            className="h-14 flex-1 flex-row items-center justify-center rounded-2xl bg-emerald-600 mr-2 shadow-md active:bg-emerald-700"
-          >
-            <ShoppingBag color="#FFFFFF" size={20} />
-            <Text className="ml-2 text-base font-black text-white">
-              Buy Now • ₹{product.pricing.recommendedPrice || 499}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() =>
-              router.push(
-                `/(app)/buyer/b2b-request?productId=${product.id}` as any,
-              )
-            }
-            activeOpacity={0.88}
-            className="h-14 px-4 flex-row items-center justify-center rounded-2xl border-2 border-artisan-primary bg-orange-50 active:bg-orange-100"
-          >
-            <Building2 color="#C85A32" size={18} />
-            <Text className="ml-1.5 text-xs font-black text-artisan-primary">
-              B2B Quote
-            </Text>
-          </TouchableOpacity>
+        <View className="flex-1">
+          <Button
+            label={t('buyer.buyPrice', { p: product.pricing.recommendedPrice || 499 })}
+            icon={ShoppingBag}
+            onPress={() => router.push(`/(app)/buyer/checkout?productId=${product.id}` as any)}
+          />
         </View>
-
-        {/* Contact Artisan Row */}
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={handleContactWhatsApp}
-            className="flex-1 flex-row items-center justify-center rounded-xl bg-slate-100 py-2 mr-2"
-          >
-            <MessageCircle color="#059669" size={16} />
-            <Text className="ml-1.5 text-xs font-bold text-slate-700">
-              WhatsApp Maker
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleCallArtisan}
-            className="flex-1 flex-row items-center justify-center rounded-xl bg-slate-100 py-2"
-          >
-            <Phone color="#1E293B" size={16} />
-            <Text className="ml-1.5 text-xs font-bold text-slate-700">
-              Call Workshop
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Button
+          label={t('buyer.bulk')}
+          icon={Building2}
+          variant="secondary"
+          onPress={() => router.push(`/(app)/buyer/b2b-request?productId=${product.id}` as any)}
+        />
       </View>
     </View>
   );
 }
-

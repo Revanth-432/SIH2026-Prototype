@@ -8,16 +8,19 @@ import {
   Store,
   ShoppingCart,
 } from 'lucide-react-native';
-import { Platform, View, Text, ActivityIndicator } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useCartStore } from '../../src/store/useCartStore';
+import { Text, COLORS } from '../../src/components/ui';
+import { useT, fontFor } from '../../src/i18n';
 
 export default function AppLayout() {
   const { role, isLoading } = useAuthStore();
   const isBuyer = role === 'BUYER' || role === 'B2B_BUYER';
   const cartItems = useCartStore((s) => s.items);
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const pathname = usePathname();
+    const pathname = usePathname();
+  const { t, language } = useT();
 
   // Hide the bottom tab bar when pushed onto full-screen sub-routes (product detail, checkout, quote, search, capture studio)
   const isSubRoute =
@@ -28,39 +31,33 @@ export default function AppLayout() {
     pathname.includes('/product') ||
     pathname.includes('/capture');
 
-  if (isLoading || !role) {
-    return (
-      <View className="flex-1 items-center justify-center bg-artisan-canvas">
-        <ActivityIndicator size="large" color="#C85A32" />
-      </View>
-    );
-  }
+  // NOTE: We must ALWAYS render <Tabs> (never return early with a plain <View>).
+  // Expo Router mounts child route screens regardless, and they call useRouter() / useFocusEffect()
+  // which require a parent navigator context. Returning a plain View here would leave those
+  // child screens without a navigation context -> crash.
+  const shouldHideTabs = isLoading || !role || isSubRoute;
 
   const commonScreenOptions = {
     headerShown: false,
     freezeOnBlur: false,
     detachInactiveScreens: false,
-    tabBarActiveTintColor: '#C85A32',
-    tabBarInactiveTintColor: '#8C7E72',
+    tabBarActiveTintColor: COLORS.primary,
+    tabBarInactiveTintColor: COLORS.muted,
     tabBarHideOnKeyboard: true,
-    tabBarStyle: isSubRoute
+    tabBarStyle: shouldHideTabs
       ? { display: 'none' as const }
       : {
           backgroundColor: '#FFFFFF',
-          borderTopColor: '#E2DCD5',
+          borderTopColor: COLORS.border,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: Platform.OS === 'ios' ? 90 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 26 : 10,
           paddingTop: 8,
-          elevation: 6,
-          shadowColor: '#1E293B',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
+          elevation: 0,
         },
     tabBarLabelStyle: {
-      fontSize: 10.5,
-      fontWeight: '700' as const,
+      fontSize: 13,
+      fontFamily: fontFor(language, 'semibold'),
     },
   };
 
@@ -72,11 +69,11 @@ export default function AppLayout() {
         <Tabs.Screen
           name="buyer"
           options={{
-            title: 'Explore / बाज़ार',
+            title: t('tabs.shop'),
             tabBarIcon: ({ color, focused }) => (
               <Store
                 color={color}
-                size={focused ? 23 : 21}
+                size={26}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -87,17 +84,17 @@ export default function AppLayout() {
         <Tabs.Screen
           name="cart"
           options={{
-            title: 'Cart / कार्ट',
+            title: t('tabs.cart'),
             tabBarIcon: ({ color, focused }) => (
               <View className="relative">
                 <ShoppingCart
                   color={color}
-                  size={focused ? 23 : 21}
+                  size={26}
                   strokeWidth={focused ? 2.5 : 2}
                 />
                 {cartCount > 0 ? (
-                  <View className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-artisan-primary items-center justify-center">
-                    <Text className="text-[9px] font-black text-white">
+                  <View className="absolute -top-2 -right-3 h-5 min-w-[20px] rounded-full bg-artisan-primary items-center justify-center px-1">
+                    <Text className="text-xs font-bold text-white">
                       {cartCount > 9 ? '9+' : cartCount}
                     </Text>
                   </View>
@@ -111,11 +108,11 @@ export default function AppLayout() {
         <Tabs.Screen
           name="buyer-orders"
           options={{
-            title: 'Orders / ऑर्डर',
+            title: t('tabs.orders'),
             tabBarIcon: ({ color, focused }) => (
               <Package
                 color={color}
-                size={focused ? 23 : 21}
+                size={26}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -126,11 +123,11 @@ export default function AppLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: 'Profile / प्रोफ़ाइल',
+            title: t('tabs.profile'),
             tabBarIcon: ({ color, focused }) => (
               <User
                 color={color}
-                size={focused ? 23 : 21}
+                size={26}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -154,11 +151,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Home / मुख्य',
+          title: t('tabs.home'),
           tabBarIcon: ({ color, focused }) => (
             <Home
               color={color}
-              size={focused ? 23 : 21}
+              size={26}
               strokeWidth={focused ? 2.5 : 2}
             />
           ),
@@ -169,11 +166,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="catalog"
         options={{
-          title: 'Catalog / कैटलॉग',
+          title: t('tabs.myItems'),
           tabBarIcon: ({ color, focused }) => (
             <Package
               color={color}
-              size={focused ? 23 : 21}
+              size={26}
               strokeWidth={focused ? 2.5 : 2}
             />
           ),
@@ -184,11 +181,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'Orders / ऑर्डर',
+          title: t('tabs.orders'),
           tabBarIcon: ({ color, focused }) => (
             <ShoppingBag
               color={color}
-              size={focused ? 23 : 21}
+              size={26}
               strokeWidth={focused ? 2.5 : 2}
             />
           ),
@@ -199,11 +196,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile / प्रोफ़ाइल',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <User
               color={color}
-              size={focused ? 23 : 21}
+              size={26}
               strokeWidth={focused ? 2.5 : 2}
             />
           ),

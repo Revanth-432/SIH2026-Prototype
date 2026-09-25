@@ -36,10 +36,10 @@ export class CatalogService {
   async smartPublish(
     user: AuthenticatedUser,
     dto: SmartPublishDto,
-    imageFile?: Express.Multer.File,
+    imageFiles: Express.Multer.File[],
     audioFile?: Express.Multer.File,
   ) {
-    if (!imageFile) {
+    if (!imageFiles.length) {
       throw new BadRequestException('A product craft image file is required for cataloging.');
     }
 
@@ -52,11 +52,11 @@ export class CatalogService {
       user.phone,
     );
 
-    // 1. Upload craft photo to Supabase Storage
-    const imageUpload: UploadResult = await this.storageService.uploadFile(
-      imageFile,
-      'product-images',
-      'products',
+    // 1. Upload craft photos to Supabase Storage (order kept: first = main photo)
+    const imageUploads: UploadResult[] = await Promise.all(
+      imageFiles.map((file) =>
+        this.storageService.uploadFile(file, 'product-images', 'products'),
+      ),
     );
 
     // 2. Upload voice note if provided
@@ -76,7 +76,7 @@ export class CatalogService {
     const product = await this.catalogRepository.createPublishedProduct({
       artisanId: user.id,
       dto,
-      imageUpload,
+      imageUploads,
       audioUpload,
       pricing,
     });

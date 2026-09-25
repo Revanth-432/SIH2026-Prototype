@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mail, Lock, LogIn, Eye, EyeOff, Sparkles } from 'lucide-react-native';
+import { Mail, Lock, LogIn, Eye, EyeOff, UserPlus } from 'lucide-react-native';
 import { supabase } from '../../src/lib/supabase';
+import { Text, IconInput, Button, Field, COLORS } from '../../src/components/ui';
+import { Logo } from '../../src/components/Logo';
+import { useT, type TranslateFn } from '../../src/i18n';
 
 export default function LoginScreen() {
-  const router = useRouter();
+    const router = useRouter();
+  const { t } = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +24,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMessage('कृपया ईमेल और पासवर्ड दर्ज करें (Please enter email & password)');
+      setErrorMessage(t('auth.enterEmailPassword'));
       return;
     }
 
@@ -55,7 +56,7 @@ export default function LoginScreen() {
         }
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Login failed. Please try again.');
+      setErrorMessage(err.message || t('common.somethingWrong'));
     } finally {
       setLoading(false);
     }
@@ -67,121 +68,93 @@ export default function LoginScreen() {
       className="flex-1 bg-artisan-canvas"
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-        className="px-6 py-10"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Branding (Low Literacy Friendly) */}
+        {/* Brand */}
         <View className="mb-8 items-center">
-          <View className="mb-3 h-20 w-20 items-center justify-center rounded-3xl bg-artisan-primary shadow-lg shadow-artisan-primary/30">
-            <Sparkles color="#FFFFFF" size={40} />
-          </View>
-          <Text className="text-3xl font-extrabold tracking-tight text-artisan-slate">
-            KalaSangam
-          </Text>
-          <Text className="mt-1 text-lg font-medium text-artisan-primary">
-            कला संगम • Artisan Studio
-          </Text>
-          <Text className="mt-2 text-center text-base text-artisan-muted">
-            Sign In to your artisan account
-          </Text>
+          <Logo size={96} />
+          <Text className="mt-4 text-3xl font-bold text-artisan-slate">{t('common.appName')}</Text>
         </View>
 
-        {/* Error Alert Banner */}
-        {errorMessage && (
-          <View className="mb-6 rounded-2xl border border-artisan-error/30 bg-red-50 p-4">
+        {errorMessage ? (
+          <View className="mb-5 rounded-xl border-2 border-artisan-error bg-red-50 p-4">
             <Text className="text-center text-base font-semibold text-artisan-error">
-              {errorMessage}
+              {friendlyAuthError(errorMessage, t)}
             </Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Input Form with Large Touch Targets */}
-        <View className="space-y-4">
-          {/* Email / Phone Field */}
-          <View>
-            <Text className="mb-2 text-base font-bold text-artisan-slate">
-              Email / ईमेल
-            </Text>
-            <View className="h-16 flex-row items-center rounded-2xl border-2 border-artisan-border bg-white px-4">
-              <Mail color="#C85A32" size={24} />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="artisan@example.com"
-                placeholderTextColor="#94A3B8"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                className="ml-3 flex-1 text-lg font-medium text-artisan-slate"
-              />
-            </View>
-          </View>
+        <Field label={t('auth.email')}>
+          <IconInput
+            icon={Mail}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="aap@example.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+        </Field>
 
-          {/* Password Field */}
-          <View className="mt-4">
-            <Text className="mb-2 text-base font-bold text-artisan-slate">
-              Password / पासवर्ड
-            </Text>
-            <View className="h-16 flex-row items-center rounded-2xl border-2 border-artisan-border bg-white px-4">
-              <Lock color="#C85A32" size={24} />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                className="ml-3 flex-1 text-lg font-medium text-artisan-slate"
-              />
+        <Field label={t('auth.password')}>
+          <IconInput
+            icon={Lock}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            right={
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
-                className="p-2"
-                accessibilityLabel="Toggle password visibility"
+                className="h-12 w-12 items-center justify-center"
+                accessibilityLabel="Show or hide password"
               >
                 {showPassword ? (
-                  <EyeOff color="#64748B" size={22} />
+                  <EyeOff color={COLORS.muted} size={24} />
                 ) : (
-                  <Eye color="#64748B" size={22} />
+                  <Eye color={COLORS.muted} size={24} />
                 )}
               </TouchableOpacity>
-            </View>
-          </View>
+            }
+          />
+        </Field>
 
-          {/* Primary Action Button (Extra Large Touch Target: Height 60px) */}
-          <TouchableOpacity
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-            className="mt-6 h-16 flex-row items-center justify-center rounded-2xl bg-artisan-primary shadow-lg shadow-artisan-primary/30"
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <LogIn color="#FFFFFF" size={24} />
-                <Text className="ml-3 text-xl font-bold text-white">
-                  Sign In / प्रवेश करें
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+        <Button
+          label={t('auth.login')}
+          icon={LogIn}
+          onPress={handleLogin}
+          loading={loading}
+          className="mt-2"
+        />
+
+        <View className="my-6 flex-row items-center">
+          <View className="h-px flex-1 bg-artisan-border" />
+          <Text className="mx-3 text-base text-artisan-muted">{t('auth.newHere')}</Text>
+          <View className="h-px flex-1 bg-artisan-border" />
         </View>
 
-        {/* Footer Navigation to Registration */}
-        <View className="mt-8 items-center">
-          <Text className="text-base text-artisan-muted">
-            New to KalaSangam? / नया खाता बनाएं?
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/register')}
-            className="mt-2 py-3 px-6 rounded-xl border border-artisan-primary/20 bg-artisan-light"
-          >
-            <Text className="text-lg font-bold text-artisan-primary">
-              Register Here / यहाँ रजिस्टर करें
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Button
+          label={t('auth.createAccount')}
+          icon={UserPlus}
+          variant="secondary"
+          onPress={() => router.push('/(auth)/register')}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
+}
+
+function friendlyAuthError(message: string, t: TranslateFn): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login') || m.includes('invalid credentials')) {
+    return t('auth.wrongCredentials');
+  }
+  if (m.includes('email not confirmed')) {
+    return t('auth.confirmEmail');
+  }
+  if (m.includes('network') || m.includes('fetch')) {
+    return t('common.noInternet');
+  }
+  return message;
 }

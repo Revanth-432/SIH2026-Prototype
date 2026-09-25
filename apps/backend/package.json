@@ -2,12 +2,12 @@
   "name": "@artisan/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "NestJS backend API for AI-Driven Market Linkage & Smart Cataloging Platform",
+  "description": "Kala Vaani backend API — AI-driven market linkage & smart cataloging for artisans",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
-    "start:dev": "tsc -w",
+    "start:dev": "tsc && node --watch dist/main.js",
     "dev": "tsc -w"
   },
   "dependencies": {

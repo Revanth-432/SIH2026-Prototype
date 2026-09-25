@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -15,14 +14,17 @@ import {
   Play,
   RotateCcw,
   Sparkles,
-  ArrowRight,
-  ArrowLeft,
+  SkipForward,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useDraftStore } from '../../../src/store/useDraftStore';
 import { useAuthStore } from '../../../src/store/useAuthStore';
+import { Text, Button, ScreenHeader, StepBar, COLORS } from '../../../src/components/ui';
+import { useT } from '../../../src/i18n';
 
 export default function CaptureVoiceScreen() {
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { role, isLoading } = useAuthStore();
 
@@ -67,8 +69,8 @@ export default function CaptureVoiceScreen() {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status !== 'granted') {
         Alert.alert(
-          'माइक्रोफ़ोन अनुमति आवश्यक है (Permission Required)',
-          'Please grant microphone permission to record your voice description.',
+                    t('capture.micPermTitle'),
+          t('capture.micPermMsg'),
         );
         return;
       }
@@ -88,7 +90,7 @@ export default function CaptureVoiceScreen() {
       setRecordedUri(null);
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert('Recording Error', 'Failed to start recording.');
+      Alert.alert(t('capture.recordFailed'), t('common.somethingWrong'));
     }
   };
 
@@ -159,155 +161,123 @@ export default function CaptureVoiceScreen() {
   };
 
   return (
-    <View
-      className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) }}
-    >
-      {/* Top Header */}
-      <View className="flex-row items-center justify-between border-b border-artisan-border bg-white px-6 py-4">
-        <TouchableOpacity
-          key="btn-header-back"
-          onPress={() => router.back()}
-          className="h-12 w-12 items-center justify-center rounded-2xl bg-slate-100"
-        >
-          <ArrowLeft color="#1E293B" size={24} />
-        </TouchableOpacity>
-        <View className="items-center">
-          <Text className="text-xl font-bold text-artisan-slate">
-            Step 2 of 3: Voice
-          </Text>
-          <Text className="text-xs font-semibold text-artisan-amber">
-            कदम 2: आवाज़ में विवरण
-          </Text>
-        </View>
-        <View className="w-12" />
-      </View>
+    <View className="flex-1 bg-artisan-canvas">
+      <ScreenHeader
+        title={t('capture.speakTitle')}
+        onBack={() => router.back()}
+      />
+      <StepBar step={2} labels={[t('capture.stepPhoto'), t('capture.stepVoice'), t('capture.stepCheck')]} />
 
-      <ScrollView contentContainerStyle={{ padding: 24, alignItems: 'center' }}>
-        {/* Simple Bilingual Prompt Banner */}
-        <View className="mb-8 w-full rounded-3xl bg-white p-6 border border-artisan-border shadow-sm">
-          <Text className="text-xl font-bold text-artisan-slate text-center">
-            Tell us about your craft
-          </Text>
-          <Text className="mt-1 text-base font-medium text-artisan-amber text-center">
-            अपनी भाषा में बोलें (सामग्री, बनाने का तरीका)
-          </Text>
-          <Text className="mt-2 text-center text-sm text-artisan-muted">
-            Speak in Hindi, English, or your local regional language. Our AI will understand!
-          </Text>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, alignItems: 'center' }}>
+        <Text className="mt-2 text-center text-xl font-bold text-artisan-slate">
+                    {t('capture.speakQuestion')}
+        </Text>
+        <Text className="text-center text-base text-artisan-muted">
+          {t('capture.speakAnyLang')}
+        </Text>
 
-        {/* Massive Animated Microphone Button Area */}
-        <View className="my-6 items-center">
+        {/* Mic */}
+        <View className="my-8 items-center">
           {isRecording ? (
             <TouchableOpacity
               key="btn-recording-stop"
               onPress={stopRecording}
               activeOpacity={0.85}
-              className="h-44 w-44 items-center justify-center rounded-full bg-red-500 shadow-2xl shadow-red-500/50 border-8 border-red-200"
+              accessibilityLabel="Stop recording"
+              style={micStyle(COLORS.error, '#FECACA')}
             >
-              <Square color="#FFFFFF" size={56} fill="#FFFFFF" />
-              <Text className="mt-2 text-base font-extrabold text-white">
-                Tap to Stop
-              </Text>
+              <Square color="#FFFFFF" size={60} fill="#FFFFFF" />
             </TouchableOpacity>
           ) : recordedUri ? (
             <TouchableOpacity
               key="btn-recording-play"
               onPress={playRecordedAudio}
               activeOpacity={0.85}
-              className="h-44 w-44 items-center justify-center rounded-full bg-green-600 shadow-2xl shadow-green-600/40 border-8 border-green-200"
+              accessibilityLabel="Play recording"
+              style={micStyle(COLORS.success, '#BBF7D0')}
             >
-              <Play color="#FFFFFF" size={56} fill="#FFFFFF" />
-              <Text className="mt-2 text-base font-extrabold text-white">
-                {isPlaying ? 'Playing...' : 'Tap to Listen'}
-              </Text>
+              <Play color="#FFFFFF" size={64} fill="#FFFFFF" />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               key="btn-recording-start"
               onPress={startRecording}
               activeOpacity={0.85}
-              className="h-44 w-44 items-center justify-center rounded-full bg-artisan-amber shadow-2xl shadow-artisan-amber/40 border-8 border-amber-200"
+              accessibilityLabel="Start recording"
+              style={micStyle(COLORS.primary, '#F7E9E1')}
             >
-              <Mic color="#FFFFFF" size={64} />
-              <Text className="mt-2 text-base font-extrabold text-white">
-                Tap to Speak
-              </Text>
+              <Mic color="#FFFFFF" size={80} />
             </TouchableOpacity>
           )}
 
-          {/* Recording Timer / Status Indicator */}
-          <View className="mt-6 items-center">
+          <View className="mt-5 items-center">
             {isRecording ? (
-              <View key="status-recording" className="flex-row items-center rounded-full bg-red-100 px-5 py-2">
-                <View className="mr-2 h-3 w-3 rounded-full bg-red-600" />
-                <Text className="text-xl font-bold font-mono text-red-700">
-                  Recording: {formatTimer(durationSec)}
-                </Text>
+              <View key="status-recording" className="items-center">
+                <Text className="text-4xl font-bold text-artisan-error">{formatTimer(durationSec)}</Text>
+                <Text className="text-lg font-bold text-artisan-slate">{t('capture.tapToStop')}</Text>
               </View>
             ) : recordedUri ? (
-              <View key="status-recorded" className="flex-row items-center rounded-full bg-green-100 px-5 py-2">
-                <Text className="text-base font-bold text-green-800">
-                  ✓ Voice Note Recorded / आवाज़ तैयार है
+              <View key="status-recorded" className="items-center">
+                <View className="flex-row items-center">
+                  <CheckCircle2 color={COLORS.success} size={24} />
+                  <Text className="ml-2 text-lg font-bold text-artisan-success">{t('capture.voiceReady')}</Text>
+                </View>
+                <Text className="text-base text-artisan-muted">
+                  {isPlaying ? t('capture.playing') : t('capture.tapToListen')}
                 </Text>
               </View>
             ) : (
-              <Text key="status-idle" className="text-base font-medium text-artisan-muted">
-                आवाज़ रिकॉर्ड करने के लिए बटन दबाएं
-              </Text>
+              <View key="status-idle" className="items-center">
+                <Text className="text-lg font-bold text-artisan-slate">{t('capture.tapToSpeak')}</Text>
+              </View>
             )}
           </View>
         </View>
 
-        {/* Next & Options Actions */}
-        <View className="w-full mt-6 space-y-4">
+        {/* Next */}
+        <View className="w-full">
           {recordedUri ? (
-            <View key="actions-recorded" className="w-full">
-              {/* Primary AI Generation Button */}
-              <TouchableOpacity
+            <View key="actions-recorded" style={{ gap: 12 }}>
+              <Button
                 key="btn-proceed-catalog"
+                label={t('common.next')}
+                icon={Sparkles}
                 onPress={handleProceed}
-                activeOpacity={0.85}
-                className="h-20 flex-row items-center justify-center rounded-2xl bg-artisan-primary shadow-lg shadow-artisan-primary/30"
-              >
-                <Sparkles color="#FFFFFF" size={28} />
-                <Text className="ml-3 text-2xl font-extrabold text-white">
-                  Generate Catalog / AI विश्लेषण
-                </Text>
-              </TouchableOpacity>
-
-              {/* Re-record Button */}
-              <TouchableOpacity
+              />
+              <Button
                 key="btn-rerecord-voice"
+                label={t('capture.recordAgain')}
+                icon={RotateCcw}
+                variant="secondary"
                 onPress={startRecording}
-                activeOpacity={0.85}
-                className="mt-4 h-16 flex-row items-center justify-center rounded-2xl border-2 border-artisan-border bg-white"
-              >
-                <RotateCcw color="#64748B" size={22} />
-                <Text className="ml-3 text-lg font-bold text-artisan-slate">
-                  Re-record / दोबारा बोलें
-                </Text>
-              </TouchableOpacity>
+              />
             </View>
           ) : (
-            <View key="actions-unrecorded" className="w-full">
-              {/* Skip Option (Allowed when user only wants to upload photo) */}
-              <TouchableOpacity
+            <View key="actions-unrecorded">
+              <Button
                 key="btn-skip-voice"
+                label={t('capture.skipVoice')}
+                icon={SkipForward}
+                variant="ghost"
                 onPress={handleSkip}
-                activeOpacity={0.85}
-                className="h-16 flex-row items-center justify-center rounded-2xl border-2 border-artisan-border bg-white"
-              >
-                <Text className="text-lg font-bold text-artisan-muted">
-                  Skip Voice Step / आवाज़ छोडें
-                </Text>
-                <ArrowRight color="#64748B" size={20} style={{ marginLeft: 8 }} />
-              </TouchableOpacity>
+              />
             </View>
           )}
         </View>
       </ScrollView>
     </View>
   );
+}
+
+function micStyle(bg: string, ring: string) {
+  return {
+    height: 180,
+    width: 180,
+    borderRadius: 90,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: bg,
+    borderWidth: 10,
+    borderColor: ring,
+  };
 }

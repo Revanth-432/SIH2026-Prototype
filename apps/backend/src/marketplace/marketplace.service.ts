@@ -232,7 +232,7 @@ export class MarketplaceService {
         translations: true,
         metadata: true,
         pricing: true,
-        media: true,
+        media: { orderBy: { displayOrder: 'asc' } },
         artisan: { include: { profile: true } },
       },
       take: limit,
@@ -354,6 +354,9 @@ export class MarketplaceService {
           angleLabel: (m.metadata as any)?.angleLabel || 'Studio Clean Cutout',
         })),
         originalPhotoUrl: originalPhoto?.url || null,
+        originalPhotos: product.media
+          .filter((m) => m.mediaType === MediaType.ORIGINAL_PHOTO)
+          .map((m) => ({ id: m.id, url: m.url })),
         marketingAssets: marketingAssets.map((m) => ({ id: m.id, url: m.url })),
         all: product.media.map((m) => ({
           id: m.id,

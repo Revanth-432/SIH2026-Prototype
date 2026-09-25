@@ -79,9 +79,9 @@ export class CatalogController {
       type: 'object',
       properties: {
         image: {
-          type: 'string',
-          format: 'binary',
-          description: 'Craft product photograph',
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Craft product photographs (1-5). The first one is the main photo.',
         },
         audio: {
           type: 'string',
@@ -107,7 +107,7 @@ export class CatalogController {
   })
   @UseInterceptors(
     FileFieldsInterceptor([
-      { name: 'image', maxCount: 1 },
+      { name: 'image', maxCount: 5 },
       { name: 'audio', maxCount: 1 },
     ]),
   )
@@ -132,10 +132,10 @@ export class CatalogController {
       dto = body as SmartPublishDto;
     }
 
-    const imageFile = files?.image?.[0];
+    const imageFiles = files?.image ?? [];
     const audioFile = files?.audio?.[0];
 
-    return this.catalogService.smartPublish(user, dto, imageFile, audioFile);
+    return this.catalogService.smartPublish(user, dto, imageFiles, audioFile);
   }
 }
 

@@ -1,31 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
   Image,
-  ActivityIndicator,
   Alert,
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ArrowLeft,
   Building2,
   Package,
   Calendar,
   IndianRupee,
-  FileText,
-  CheckCircle2,
   MessageCircle,
   ShoppingBag,
-  Sparkles,
+  Store,
 } from 'lucide-react-native';
 import { useAuthStore } from '../../../src/store/useAuthStore';
 import { getApiBaseUrl } from '../../../src/lib/api';
+import {
+  Text,
+  Input,
+  IconInput,
+  Button,
+  Field,
+  ScreenHeader,
+  Loading,
+  COLORS,
+} from '../../../src/components/ui';
+import { useT } from '../../../src/i18n';
 
 interface ProductDetail {
   id: string;
@@ -52,6 +56,7 @@ interface ProductDetail {
 export default function BuyerB2BRequestScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { session, role, isLoading } = useAuthStore();
 
@@ -103,12 +108,12 @@ export default function BuyerB2BRequestScreen() {
   const handleSubmitInquiry = async () => {
     const qty = parseInt(requestedQuantity, 10);
     if (isNaN(qty) || qty < 1) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid wholesale quantity (e.g. 50+).');
+      Alert.alert(t('buyer.qtyTitle'), t('buyer.qtyMsg'));
       return;
     }
 
     if (!session?.access_token) {
-      Alert.alert('Login Required', 'Please log in to submit a wholesale quote request.');
+      Alert.alert(t('common.loginRequired'), t('common.logInFirst'));
       return;
     }
 
@@ -134,11 +139,11 @@ export default function BuyerB2BRequestScreen() {
         setInquiryCreated(data);
       } else {
         const errData = await res.json();
-        Alert.alert('Submission Failed', errData.message || 'Could not submit inquiry.');
+        Alert.alert(t('buyer.notSent'), errData.message || t('common.somethingWrong'));
       }
     } catch (err) {
       console.warn('B2B Inquiry error:', err);
-      Alert.alert('Connection Error', 'Failed to connect to server.');
+      Alert.alert(t('common.noConnection'), t('common.checkInternet'));
     } finally {
       setSubmitting(false);
     }
@@ -146,266 +151,165 @@ export default function BuyerB2BRequestScreen() {
 
   if (loading) {
     return (
-      <View
-        className="flex-1 items-center justify-center bg-artisan-canvas"
-        style={{ paddingTop: Math.max(insets.top, 20) }}
-      >
-        <ActivityIndicator size="large" color="#C85A32" />
-        <Text className="mt-3 text-sm font-bold text-artisan-slate">
-          Loading craft specifications...
-        </Text>
+      <View className="flex-1 bg-artisan-canvas">
+        <ScreenHeader title={t('buyer.bulkOrder')} onBack={() => router.back()} />
+        <Loading />
       </View>
     );
   }
 
-  // Success Confirmation View
   if (inquiryCreated) {
     return (
       <View
-        className="flex-1 bg-artisan-canvas justify-center items-center p-6"
+        className="flex-1 items-center justify-center bg-artisan-canvas p-4"
         style={{ paddingTop: Math.max(insets.top, 20) }}
       >
-        <View className="w-full rounded-3xl bg-white p-6 shadow-md border border-artisan-border items-center">
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-orange-100 border-2 border-orange-300">
-            <Building2 color="#C85A32" size={40} />
+        <View className="w-full items-center rounded-2xl border border-artisan-border bg-white p-5">
+          <View className="h-24 w-24 items-center justify-center rounded-full bg-artisan-light">
+            <Building2 color={COLORS.primary} size={48} />
           </View>
-
-          <Text className="mt-5 text-2xl font-black text-artisan-slate text-center">
-            Wholesale RFQ Submitted!
-          </Text>
-          <Text className="text-sm font-semibold text-artisan-primary mt-1">
-            थोक पूछताछ सफलतापूर्वक भेजी गई
+          <Text className="mt-4 text-center text-2xl font-bold text-artisan-slate">{t('buyer.requestSent')}</Text>
+          <Text className="mt-1 text-center text-base text-artisan-muted">
+                        {t('buyer.willReply')}
           </Text>
 
-          <View className="my-5 w-full rounded-2xl bg-slate-50 p-4 border border-slate-200">
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-xs text-artisan-muted">RFQ ID:</Text>
-              <Text className="text-xs font-mono font-bold text-slate-800">
+          <View className="my-4 w-full rounded-xl bg-stone-50 p-4">
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('buyer.request')}</Text>
+              <Text className="text-base font-bold text-artisan-slate">
                 #{inquiryCreated.id.slice(0, 8).toUpperCase()}
               </Text>
             </View>
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-xs text-artisan-muted">Quantity:</Text>
-              <Text className="text-xs font-bold text-slate-800">
-                {inquiryCreated.requestedQuantity} Units
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('buyer.quantity')}</Text>
+              <Text className="text-base font-bold text-artisan-slate">
+                {inquiryCreated.requestedQuantity}
               </Text>
             </View>
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-xs text-artisan-muted">Target Price:</Text>
-              <Text className="text-xs font-bold text-green-700">
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('buyer.yourPrice')}</Text>
+              <Text className="text-base font-bold text-artisan-success">
                 {inquiryCreated.targetPricePerUnit
-                  ? `₹${inquiryCreated.targetPricePerUnit} / unit`
-                  : 'Artisan to Quote'}
+                                    ? t('buyer.eachPrice', { p: inquiryCreated.targetPricePerUnit })
+                  : t('buyer.artisanWillQuote')}
               </Text>
             </View>
-            <View className="flex-row justify-between">
-              <Text className="text-xs text-artisan-muted">Artisan Maker:</Text>
-              <Text className="text-xs font-bold text-slate-800">
-                {product?.artisan.name}
-              </Text>
+            <View className="flex-row justify-between py-1">
+              <Text className="text-base text-artisan-muted">{t('onb.artisan')}</Text>
+              <Text className="text-base font-bold text-artisan-slate">{product?.artisan.name}</Text>
             </View>
           </View>
 
-          <Text className="text-center text-xs text-slate-600 leading-5">
-            The artisan workshop has been notified of your bulk requirements. You can also start an immediate WhatsApp discussion.
-          </Text>
-
-          {/* Quick WhatsApp Connect */}
-          {Boolean(product?.artisan?.phone) ? (
-            <TouchableOpacity
-              onPress={() => {
-                const text = `Namaste ${product?.artisan.name}! I submitted wholesale RFQ #${inquiryCreated.id.slice(0, 8).toUpperCase()} for ${inquiryCreated.requestedQuantity} units of "${product?.title}". Let's discuss production timeline and sample delivery.`;
-                Linking.openURL(
-                  `whatsapp://send?phone=${product?.artisan.phone!.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(text)}`,
-                );
-              }}
-              className="mt-4 h-14 w-full flex-row items-center justify-center rounded-2xl bg-emerald-600 shadow-md active:bg-emerald-700"
-            >
-              <MessageCircle color="#FFFFFF" size={20} />
-              <Text className="ml-2 text-base font-extrabold text-white">
-                Chat with Artisan on WhatsApp
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <TouchableOpacity
-            onPress={() => router.replace('/(app)/buyer/feed' as any)}
-            className="mt-3 h-12 w-full items-center justify-center rounded-2xl border border-slate-300 bg-white"
-          >
-            <Text className="text-sm font-bold text-slate-700">
-              Return to Marketplace
-            </Text>
-          </TouchableOpacity>
+          <View className="w-full" style={{ gap: 10 }}>
+            {Boolean(product?.artisan?.phone) ? (
+              <Button
+                label={t('buyer.chatWhatsApp')}
+                icon={MessageCircle}
+                variant="success"
+                onPress={() => {
+                  const text = `Namaste ${product?.artisan.name}! I submitted wholesale RFQ #${inquiryCreated.id.slice(0, 8).toUpperCase()} for ${inquiryCreated.requestedQuantity} units of "${product?.title}". Let's discuss production timeline and sample delivery.`;
+                  Linking.openURL(
+                    `whatsapp://send?phone=${product?.artisan.phone!.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(text)}`,
+                  );
+                }}
+              />
+            ) : null}
+            <Button
+              label={t('buyer.backToShop')}
+              icon={Store}
+              variant="ghost"
+              onPress={() => router.replace('/(app)/buyer/feed' as any)}
+            />
+          </View>
         </View>
       </View>
     );
   }
 
   return (
-    <View
-      className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) }}
-    >
-      {/* Header */}
-      <View className="flex-row items-center border-b border-artisan-border bg-white px-4 py-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 mr-3"
-        >
-          <ArrowLeft color="#1E293B" size={22} />
-        </TouchableOpacity>
-        <View>
-          <Text className="text-lg font-black text-artisan-slate">
-            B2B Bulk Quotation
-          </Text>
-          <Text className="text-xs text-artisan-muted">
-            Direct Wholesale & Institutional Sourcing
-          </Text>
-        </View>
-      </View>
+    <View className="flex-1 bg-artisan-canvas">
+      <ScreenHeader title={t('buyer.bulkOrder')} subtitle={t('buyer.askPrice')} onBack={() => router.back()} />
 
-      <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
-        {/* Product Card */}
-        {product && (
-          <View className="rounded-3xl border border-artisan-border bg-white p-4 shadow-sm mb-5">
-            <View className="flex-row items-center">
-              <View className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-100 border border-artisan-border">
-                {product.media.thumbnail ? (
-                  <Image
-                    source={{ uri: product.media.thumbnail }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="h-full w-full items-center justify-center bg-orange-50">
-                    <ShoppingBag color="#C85A32" size={28} />
-                  </View>
-                )}
-              </View>
-
-              <View className="ml-3 flex-1">
-                <Text className="text-xs font-bold text-artisan-primary uppercase">
-                  {product.craftType || product.category}
-                </Text>
-                <Text
-                  className="mt-0.5 text-base font-bold text-artisan-slate"
-                  numberOfLines={1}
-                >
-                  {product.title}
-                </Text>
-                <Text className="text-xs text-artisan-muted">
-                  Maker: {product.artisan.name} • {product.artisan.region || 'India'}
-                </Text>
-                <Text className="mt-1 text-xs text-slate-500">
-                  Retail Reference: ₹{product.pricing.recommendedPrice || 499}/unit
-                </Text>
-              </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {product ? (
+          <View className="mb-4 flex-row items-center rounded-2xl border border-artisan-border bg-white p-3">
+            <View className="h-20 w-20 overflow-hidden rounded-xl bg-stone-100">
+              {product.media.thumbnail ? (
+                <Image source={{ uri: product.media.thumbnail }} className="h-full w-full" resizeMode="cover" />
+              ) : (
+                <View className="h-full w-full items-center justify-center bg-artisan-light">
+                  <ShoppingBag color={COLORS.primary} size={28} />
+                </View>
+              )}
             </View>
-          </View>
-        )}
-
-        {/* RFQ Form */}
-        <View className="rounded-3xl border border-artisan-border bg-white p-5 shadow-sm mb-8">
-          <Text className="text-base font-extrabold text-artisan-slate mb-4">
-            Wholesale Requirements / थोक आवश्यकताएं
-          </Text>
-
-          {/* Requested Quantity */}
-          <View className="mb-4">
-            <View className="flex-row items-center mb-1.5">
-              <Package color="#C85A32" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Bulk Units Required *
+            <View className="ml-3 flex-1">
+              <Text className="text-lg font-bold text-artisan-slate" numberOfLines={2}>
+                {product.title}
+              </Text>
+              <Text className="text-sm text-artisan-muted">
+                {t('common.by', { name: product.artisan.name })} · {product.artisan.region || 'India'}
+              </Text>
+              <Text className="text-base text-artisan-muted">
+                {t('buyer.retailEach', { p: product.pricing.recommendedPrice || 499 })}
               </Text>
             </View>
-            <TextInput
+          </View>
+        ) : null}
+
+        <View className="rounded-2xl border border-artisan-border bg-white p-4">
+          <Field label={t('buyer.howMany')}>
+            <IconInput
+              icon={Package}
               value={requestedQuantity}
               onChangeText={setRequestedQuantity}
-              placeholder="e.g. 50, 100, 500"
-              placeholderTextColor="#94A3B8"
+              placeholder="e.g. 50"
               keyboardType="number-pad"
-              className="h-14 rounded-2xl border-2 border-slate-200 bg-slate-50 px-3.5 text-base font-black text-artisan-slate"
             />
-          </View>
-
-          {/* Target Price */}
-          <View className="mb-4">
-            <View className="flex-row items-center mb-1.5">
-              <IndianRupee color="#C85A32" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Target Budget Per Unit (₹)
-              </Text>
-            </View>
-            <TextInput
+          </Field>
+          <Field label={t('buyer.pricePerPiece')}>
+            <IconInput
+              icon={IndianRupee}
               value={targetPrice}
               onChangeText={setTargetPrice}
               placeholder="e.g. 350"
-              placeholderTextColor="#94A3B8"
               keyboardType="number-pad"
-              className="h-14 rounded-2xl border-2 border-slate-200 bg-slate-50 px-3.5 text-base font-semibold text-artisan-slate"
             />
-          </View>
-
-          {/* Delivery Timeline */}
-          <View className="mb-4">
-            <View className="flex-row items-center mb-1.5">
-              <Calendar color="#64748B" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Required Delivery Timeline
-              </Text>
-            </View>
-            <TextInput
+          </Field>
+          <Field label={t('buyer.neededBy')}>
+            <IconInput
+              icon={Calendar}
               value={deliveryTimeline}
               onChangeText={setDeliveryTimeline}
-              placeholder="e.g. Within 30 days / Before October"
-              placeholderTextColor="#94A3B8"
-              className="h-14 rounded-2xl border-2 border-slate-200 bg-slate-50 px-3.5 text-sm font-semibold text-artisan-slate"
+              placeholder={t('buyer.neededByPh')}
             />
-          </View>
-
-          {/* Custom Specifications */}
-          <View>
-            <View className="flex-row items-center mb-1.5">
-              <FileText color="#64748B" size={14} />
-              <Text className="ml-1 text-xs font-bold text-slate-700">
-                Custom Branding & Packaging Notes
-              </Text>
-            </View>
-            <TextInput
+          </Field>
+          <Field label={t('buyer.notesOptional')} className="mb-0">
+            <Input
               value={message}
               onChangeText={setMessage}
-              placeholder="Specify custom tags, corporate branding stamps, or export packaging requirements..."
-              placeholderTextColor="#94A3B8"
+              placeholder={t('buyer.notesPh')}
               multiline
               numberOfLines={4}
-              className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3.5 text-sm text-artisan-slate"
             />
-          </View>
+          </Field>
         </View>
       </ScrollView>
 
-      {/* Sticky Bottom Submit Button */}
       <View
-        className="border-t border-artisan-border bg-white px-5 pt-4 shadow-lg"
-        style={{ paddingBottom: Math.max(insets.bottom, 14) }}
+        className="border-t border-artisan-border bg-white px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       >
-        <TouchableOpacity
+        <Button
+          label={t('buyer.sendRequest')}
+          icon={Building2}
+          loading={submitting}
           onPress={handleSubmitInquiry}
-          disabled={submitting}
-          activeOpacity={0.88}
-          className="h-16 flex-row items-center justify-center rounded-2xl bg-artisan-primary shadow-md active:bg-orange-700"
-        >
-          {submitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Building2 color="#FFFFFF" size={22} />
-              <Text className="ml-2 text-lg font-black text-white">
-                Submit Wholesale RFQ
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        />
       </View>
     </View>
   );

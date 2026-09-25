@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -63,4 +64,13 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   buyerNotes?: string;
+
+  @ApiPropertyOptional({
+    description: 'COD = cash on delivery (default), ONLINE = pay now with Razorpay (UPI / card / net banking)',
+    enum: ['COD', 'ONLINE'],
+    default: 'COD',
+  })
+  @IsOptional()
+  @IsIn(['COD', 'ONLINE'])
+  paymentMethod?: 'COD' | 'ONLINE';
 }

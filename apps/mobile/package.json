@@ -11,6 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/mukta": "^0.4.1",
+    "@expo-google-fonts/noto-sans-telugu": "^0.4.2",
     "@expo/server": "^0.5.3",
     "@google/generative-ai": "^0.24.0",
     "@react-native-async-storage/async-storage": "1.23.1",
@@ -20,9 +22,12 @@
     "expo-av": "~15.0.1",
     "expo-constants": "~17.0.7",
     "expo-file-system": "~18.0.7",
+    "expo-font": "~13.0.4",
+    "expo-image-manipulator": "~13.0.6",
     "expo-image-picker": "~16.0.4",
     "expo-linking": "~7.0.5",
     "expo-router": "~4.0.17",
+    "expo-sharing": "~13.0.1",
     "expo-status-bar": "~2.0.1",
     "lucide-react-native": "^0.475.0",
     "nativewind": "^4.1.23",
@@ -34,7 +39,9 @@
     "react-native-reanimated": "~3.16.1",
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
+    "react-native-view-shot": "~4.0.3",
     "react-native-web": "~0.19.13",
+    "react-native-webview": "13.12.5",
     "tailwindcss": "^3.4.17",
     "zustand": "^5.0.3"
   },

@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ActivityIndicator,
-  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,9 +9,12 @@ import { Sparkles, AlertCircle, RotateCcw, Edit3 } from 'lucide-react-native';
 import { useDraftStore } from '../../../src/store/useDraftStore';
 import { useAuthStore } from '../../../src/store/useAuthStore';
 import { generateProductCatalog } from '../../../src/lib/gemini';
+import { Text, Button, COLORS } from '../../../src/components/ui';
+import { useT } from '../../../src/i18n';
 
 export default function ProcessingScreen() {
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { role, isLoading } = useAuthStore();
 
@@ -98,83 +99,52 @@ export default function ProcessingScreen() {
       className="flex-1 bg-artisan-canvas"
       style={{ paddingTop: Math.max(insets.top, 20) }}
     >
-      <View className="flex-1 items-center justify-center px-8">
+      <View className="flex-1 items-center justify-center px-5">
         {!error ? (
-          <>
-            {/* Friendly Warm AI Pulsing Badge */}
-            <View className="mb-8 h-28 w-28 items-center justify-center rounded-3xl bg-artisan-primary shadow-2xl shadow-artisan-primary/40">
-              <Sparkles color="#FFFFFF" size={60} />
+          <View key="working" className="w-full items-center">
+            <View className="h-28 w-28 items-center justify-center rounded-full bg-artisan-light">
+              <Sparkles color={COLORS.primary} size={60} />
             </View>
-
-            <Text className="text-3xl font-extrabold text-artisan-slate text-center">
-              Kala AI Studio
-            </Text>
-            <Text className="mt-1 text-lg font-bold text-artisan-primary text-center">
-              कला संगम AI विश्लेषण
+            <Text className="mt-6 text-center text-2xl font-bold text-artisan-slate">
+                            {t('capture.creating')}
             </Text>
 
-            <ActivityIndicator
-              size="large"
-              color="#C85A32"
-              style={{ marginVertical: 32 }}
-            />
+            <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 28 }} />
 
-            {/* Step Progress Message */}
-            <View className="rounded-2xl bg-white p-6 border border-artisan-border w-full shadow-sm">
-              <Text className="text-center text-lg font-bold text-artisan-slate">
-                {steps[loadingStep]?.en}
-              </Text>
-              <Text className="mt-2 text-center text-base font-medium text-artisan-amber">
-                {steps[loadingStep]?.hi}
+            <View className="w-full rounded-2xl border border-artisan-border bg-white p-5">
+              <Text className="text-center text-lg font-semibold text-artisan-slate">
+                                {[t('capture.step1'), t('capture.step2'), t('capture.step3'), t('capture.step4')][loadingStep]}
               </Text>
             </View>
 
-            <Text className="mt-8 text-center text-sm text-artisan-muted">
-              Please wait a moment while Gemini creates your smart catalog card...
+            <Text className="mt-6 text-center text-base text-artisan-muted">
+              {t('common.pleaseWait')}
             </Text>
-          </>
+          </View>
         ) : (
-          /* Error & Fallback View */
-          <View className="w-full rounded-3xl bg-white p-6 border-2 border-red-200 shadow-md items-center">
-            <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-red-100">
-              <AlertCircle color="#DC2626" size={36} />
+          <View key="error" className="w-full items-center rounded-2xl border-2 border-red-200 bg-white p-5">
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-red-50">
+              <AlertCircle color={COLORS.error} size={44} />
             </View>
-
-            <Text className="text-2xl font-bold text-artisan-slate text-center">
-              AI Analysis Notice
+            <Text className="mt-4 text-center text-2xl font-bold text-artisan-slate">
+                            {t('capture.notDone')}
             </Text>
-            <Text className="mt-1 text-sm font-semibold text-artisan-error text-center">
-              विश्लेषण में समस्या आई
-            </Text>
+            <Text className="mt-1 text-center text-base text-artisan-muted">{t('common.tryLater')}</Text>
 
-            <Text className="mt-4 text-center text-base text-artisan-muted">
-              {error}
-            </Text>
-
-            <View className="mt-6 w-full space-y-3">
-              {/* Retry Button */}
-              <TouchableOpacity
+            <View className="mt-6 w-full" style={{ gap: 12 }}>
+              <Button
                 key="btn-retry-ai"
+                label={t('common.tryAgain')}
+                icon={RotateCcw}
                 onPress={processMediaWithAI}
-                className="h-16 flex-row items-center justify-center rounded-2xl bg-artisan-primary"
-              >
-                <RotateCcw color="#FFFFFF" size={24} />
-                <Text className="ml-3 text-xl font-bold text-white">
-                  Retry / पुनः प्रयास करें
-                </Text>
-              </TouchableOpacity>
-
-              {/* Manual Entry Fallback */}
-              <TouchableOpacity
+              />
+              <Button
                 key="btn-manual-fallback"
+                label={t('capture.fillMyself')}
+                icon={Edit3}
+                variant="secondary"
                 onPress={handleManualFallback}
-                className="mt-3 h-16 flex-row items-center justify-center rounded-2xl border-2 border-artisan-border bg-white"
-              >
-                <Edit3 color="#1E293B" size={24} />
-                <Text className="ml-3 text-lg font-bold text-artisan-slate">
-                  Enter Details Manually / खुद भरें
-                </Text>
-              </TouchableOpacity>
+              />
             </View>
           </View>
         )}

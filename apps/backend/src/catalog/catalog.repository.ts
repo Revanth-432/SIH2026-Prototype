@@ -13,7 +13,7 @@ import { CalculatedPricing } from '../pricing/pricing.service';
 export interface CreateProductTransactionParams {
   artisanId: string;
   dto: SmartPublishDto;
-  imageUpload: UploadResult;
+  imageUploads: UploadResult[];
   audioUpload?: UploadResult | null;
   pricing: CalculatedPricing;
 }
@@ -29,7 +29,7 @@ export class CatalogRepository {
    * Metadata, Media links, and Pricing records.
    */
   async createPublishedProduct(params: CreateProductTransactionParams): Promise<Product> {
-    const { artisanId, dto, imageUpload, audioUpload, pricing } = params;
+    const { artisanId, dto, imageUploads, audioUpload, pricing } = params;
 
     const materialsArray = Array.isArray(dto.materials)
       ? dto.materials
@@ -79,17 +79,17 @@ export class CatalogRepository {
         },
       });
 
-      // 4. Create Media record for product image
-      await tx.media.create({
-        data: {
+      // 4. Create Media records for the product photos (displayOrder 0 = main photo)
+      await tx.media.createMany({
+        data: imageUploads.map((upload, index) => ({
           productId: product.id,
-          storageBucket: imageUpload.bucket,
-          storagePath: imageUpload.path,
-          url: imageUpload.publicUrl,
+          storageBucket: upload.bucket,
+          storagePath: upload.path,
+          url: upload.publicUrl,
           mediaType: MediaType.ORIGINAL_PHOTO,
           processingStatus: ProcessingStatus.COMPLETED,
-          displayOrder: 0,
-        },
+          displayOrder: index,
+        })),
       });
 
       // 5. Create Media record for voice note if available
@@ -102,7 +102,7 @@ export class CatalogRepository {
             url: audioUpload.publicUrl,
             mediaType: MediaType.VOICE_NOTE,
             processingStatus: ProcessingStatus.COMPLETED,
-            displayOrder: 1,
+            displayOrder: 99,
           },
         });
       }
@@ -132,7 +132,7 @@ export class CatalogRepository {
       include: {
         translations: true,
         metadata: true,
-        media: true,
+        media: { orderBy: { displayOrder: 'asc' } },
         pricing: true,
       },
     });

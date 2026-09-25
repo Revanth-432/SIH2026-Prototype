@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   FlatList,
   Image,
-  ActivityIndicator,
   Keyboard,
   Alert,
 } from 'react-native';
@@ -17,20 +15,16 @@ import {
   ArrowLeft,
   Search,
   X,
-  Sparkles,
-  MapPin,
-  Tag,
   ShoppingBag,
-  Clock,
-  ArrowRight,
   ShoppingCart,
   Zap,
-  CheckCircle2,
   Minus,
   Plus,
 } from 'lucide-react-native';
 import { getApiBaseUrl } from '../../../src/lib/api';
 import { useCartStore } from '../../../src/store/useCartStore';
+import { Text, Chip, EmptyState, Loading, COLORS } from '../../../src/components/ui';
+import { useT, fontFor } from '../../../src/i18n';
 
 interface SearchResult {
   id: string;
@@ -60,6 +54,7 @@ const QUICK_TAGS = [
 
 export default function BuyerSearchScreen() {
   const router = useRouter();
+  const { t, language } = useT();
   const insets = useSafeAreaInsets();
   const { role, isLoading } = useAuthStore();
 
@@ -137,23 +132,18 @@ export default function BuyerSearchScreen() {
   };
 
   const renderResultCard = ({ item }: { item: SearchResult }) => {
-    const matchPercent = item.similarityScore
-      ? Math.round(item.similarityScore * 100)
-      : null;
-
     const cartItem = cartItems.find((i) => i.id === item.id);
     const inCartQty = cartItem ? cartItem.quantity : 0;
     const maxLimit = item.baseStock || 10;
 
     return (
-      <View className="mb-4 overflow-hidden rounded-3xl border border-artisan-border bg-white shadow-sm p-3">
+      <View className="mb-3 rounded-2xl border border-artisan-border bg-white p-3">
         <TouchableOpacity
           onPress={() => router.push(`/(app)/buyer/product/${item.id}` as any)}
           activeOpacity={0.88}
           className="flex-row"
         >
-          {/* Thumbnail */}
-          <View className="relative h-28 w-28 overflow-hidden rounded-2xl bg-slate-100">
+          <View className="h-24 w-24 overflow-hidden rounded-xl bg-stone-100">
             {item.thumbnailUrl || item.marketingUrl ? (
               <Image
                 source={{ uri: item.thumbnailUrl || item.marketingUrl || '' }}
@@ -161,56 +151,27 @@ export default function BuyerSearchScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <View className="h-full w-full items-center justify-center bg-orange-50">
-                <ShoppingBag color="#C85A32" size={32} />
+              <View className="h-full w-full items-center justify-center bg-artisan-light">
+                <ShoppingBag color={COLORS.primary} size={32} />
               </View>
             )}
           </View>
-
-          {/* Details */}
-          <View className="ml-3 flex-1 justify-between">
-            <View>
-              {/* Category & Similarity Badge */}
-              <View className="flex-row items-center justify-between">
-                <Text className="text-xs font-bold uppercase tracking-wider text-artisan-primary">
-                  {item.craftType || item.category}
-                </Text>
-                {Boolean(matchPercent && matchPercent > 0) ? (
-                  <View className="flex-row items-center rounded-full bg-emerald-50 px-2 py-0.5 border border-emerald-200">
-                    <Sparkles color="#059669" size={10} />
-                    <Text className="ml-1 text-[10px] font-extrabold text-emerald-700">
-                      {matchPercent}% Match
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <Text
-                className="mt-1 text-base font-bold text-artisan-slate"
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
-
-              <Text className="text-xs text-artisan-muted" numberOfLines={1}>
-                By {item.artisanName}
-                {item.artisanRegion ? ` • ${item.artisanRegion}` : ''}
-              </Text>
-            </View>
-
-            {/* Price */}
-            <View className="mt-1">
-              <Text className="text-lg font-black text-green-800">
-                ₹{item.price || 499}
-              </Text>
-            </View>
+          <View className="ml-3 flex-1">
+            <Text className="text-lg font-bold text-artisan-slate" numberOfLines={2}>
+              {item.title}
+            </Text>
+            <Text className="text-sm text-artisan-muted" numberOfLines={1}>
+                            {t('common.by', { name: item.artisanName })}
+              {item.artisanRegion ? ` · ${item.artisanRegion}` : ''}
+            </Text>
+            <Text className="mt-1 text-xl font-bold text-artisan-success">₹{item.price || 499}</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Action Buttons: Add to Cart (with - count + stepper) & Order Now */}
-        <View className="mt-3 flex-row items-center pt-2.5 border-t border-slate-100">
+        <View className="mt-3 flex-row" style={{ gap: 10 }}>
           {inCartQty === 0 ? (
             <TouchableOpacity
+              key="add"
               onPress={() => {
                 addToCart(
                   {
@@ -226,48 +187,39 @@ export default function BuyerSearchScreen() {
                   maxLimit,
                 );
               }}
-              className="flex-1 h-11 flex-row items-center justify-center rounded-xl mr-2 border bg-orange-50 border-orange-200 active:bg-orange-100"
+              className="h-12 flex-1 flex-row items-center justify-center rounded-xl border-2 border-artisan-primary bg-white"
             >
-              <ShoppingCart color="#C85A32" size={15} />
-              <Text className="ml-1 text-xs font-bold text-artisan-primary">
-                Add to Cart
-              </Text>
+              <ShoppingCart color={COLORS.primary} size={20} />
+              <Text className="ml-2 text-base font-bold text-artisan-primary">{t('buyer.addToCart')}</Text>
             </TouchableOpacity>
           ) : (
-            <View className="flex-1 h-11 flex-row items-center justify-between rounded-xl mr-2 border border-artisan-primary/40 bg-orange-50 px-2">
+            <View
+              key="stepper"
+              className="h-12 flex-1 flex-row items-center justify-between rounded-xl border-2 border-artisan-primary bg-artisan-light px-1"
+            >
               <TouchableOpacity
                 onPress={() => updateQuantity(item.id, inCartQty - 1, maxLimit)}
-                className="h-7 w-7 items-center justify-center rounded-lg bg-white border border-orange-200 active:bg-orange-100"
-                activeOpacity={0.7}
+                accessibilityLabel="Decrease quantity"
+                className="h-10 w-10 items-center justify-center rounded-lg bg-white"
               >
-                <Minus color="#C85A32" size={13} />
+                <Minus color={COLORS.primary} size={20} />
               </TouchableOpacity>
-
-              <View className="items-center justify-center px-1">
-                <Text className="text-xs font-black text-artisan-slate">
-                  {inCartQty} in cart
-                </Text>
-              </View>
-
+              <Text className="text-lg font-bold text-artisan-slate">{inCartQty}</Text>
               <TouchableOpacity
                 onPress={() => {
                   if (inCartQty >= maxLimit) {
-                    Alert.alert(
-                      'Max Order Limit',
-                      `Maximum ${maxLimit} units can be ordered for this craft.`,
-                    );
+                    Alert.alert(t('buyer.limitTitle'), t('buyer.limitMsg', { n: maxLimit }));
                     return;
                   }
                   updateQuantity(item.id, inCartQty + 1, maxLimit);
                 }}
-                className="h-7 w-7 items-center justify-center rounded-lg bg-artisan-primary active:bg-orange-700"
-                activeOpacity={0.7}
+                accessibilityLabel="Increase quantity"
+                className="h-10 w-10 items-center justify-center rounded-lg bg-artisan-primary"
               >
-                <Plus color="#FFFFFF" size={13} />
+                <Plus color="#FFFFFF" size={20} />
               </TouchableOpacity>
             </View>
           )}
-
           <TouchableOpacity
             onPress={() =>
               router.push({
@@ -275,133 +227,94 @@ export default function BuyerSearchScreen() {
                 params: { productId: item.id },
               } as any)
             }
-            className="flex-1 h-11 flex-row items-center justify-center rounded-xl bg-artisan-primary shadow-sm"
+            className="h-12 flex-1 flex-row items-center justify-center rounded-xl bg-artisan-primary"
           >
-            <Zap color="#FFFFFF" size={15} />
-            <Text className="ml-1 text-xs font-black text-white">
-              Order Now
-            </Text>
+            <Zap color="#FFFFFF" size={20} />
+            <Text className="ml-2 text-base font-bold text-white">{t('buyer.buyNow')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-
   return (
     <View
       className="flex-1 bg-artisan-canvas"
-      style={{ paddingTop: Math.max(insets.top, 20) }}
+      style={{ paddingTop: Math.max(insets.top, 20) + 8 }}
     >
-      {/* Search Header */}
-      <View className="border-b border-artisan-border bg-white px-4 pt-3 pb-4">
+      <View className="border-b border-artisan-border bg-white px-4 pb-3">
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 mr-2"
+            accessibilityLabel="Back"
+            className="mr-2 h-12 w-12 items-center justify-center rounded-xl bg-artisan-light"
           >
-            <ArrowLeft color="#1E293B" size={22} />
+            <ArrowLeft color={COLORS.ink} size={26} />
           </TouchableOpacity>
-
-          {/* Search Input */}
-          <View className="h-14 flex-1 flex-row items-center rounded-2xl border-2 border-artisan-primary bg-slate-50 px-3">
-            <Search color="#C85A32" size={20} />
+          <View className="h-14 flex-1 flex-row items-center rounded-xl border-2 border-artisan-primary bg-white px-3">
+            <Search color={COLORS.primary} size={22} />
             <TextInput
               value={query}
               onChangeText={handleQueryChange}
-              placeholder="Search with natural language..."
-              placeholderTextColor="#94A3B8"
+              placeholder={t('buyer.searchPlaceholder')}
+              placeholderTextColor="#8A817A"
               autoFocus
               returnKeyType="search"
               onSubmitEditing={() => executeSearch(query)}
-              className="ml-2.5 flex-1 text-base font-semibold text-artisan-slate"
+              className="ml-2 flex-1 text-lg text-artisan-slate"
+              style={{ fontFamily: fontFor(language) }}
             />
-            {query.length > 0 && (
+            {query.length > 0 ? (
               <TouchableOpacity
                 onPress={() => {
                   setQuery('');
                   setResults([]);
                   setSearched(false);
                 }}
-                className="h-8 w-8 items-center justify-center rounded-full bg-slate-200"
+                accessibilityLabel="Clear search"
+                className="h-10 w-10 items-center justify-center rounded-full bg-stone-100"
               >
-                <X color="#64748B" size={16} />
+                <X color={COLORS.muted} size={20} />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         </View>
 
-        {/* AI Vector Search Indicator */}
-        <View className="mt-3 flex-row items-center">
-          <Sparkles color="#C85A32" size={14} />
-          <Text className="ml-1.5 text-xs font-semibold text-artisan-primary">
-            AI Smart Search • pgvector semantic cosine matching
-          </Text>
-        </View>
-
-        {/* Quick Suggestion Tags */}
-        <View className="mt-3 flex-row flex-wrap">
+        <View className="mt-3 flex-row flex-wrap" style={{ gap: 8 }}>
           {QUICK_TAGS.map((tag) => (
-            <TouchableOpacity
-              key={tag}
-              onPress={() => handleTagPress(tag)}
-              className="mb-1.5 mr-2 rounded-xl border border-artisan-border bg-slate-50 px-3 py-1.5 active:bg-orange-50"
-            >
-              <Text className="text-xs font-medium text-slate-700">{tag}</Text>
-            </TouchableOpacity>
+            <Chip key={tag} label={tag} selected={false} onPress={() => handleTagPress(tag)} />
           ))}
         </View>
       </View>
 
-      {/* Search Content */}
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#C85A32" />
-          <Text className="mt-3 text-sm font-bold text-artisan-slate">
-            Searching artisan crafts with AI...
-          </Text>
-          <Text className="mt-1 text-xs text-artisan-muted">
-            Matching craft style, materials, and regional heritage
-          </Text>
+        <View key="loading" className="flex-1">
+          <Loading label={t('buyer.searching')} />
         </View>
       ) : searched && results.length === 0 ? (
-        <View className="flex-1 items-center justify-center p-8">
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-orange-50">
-            <ShoppingBag color="#C85A32" size={36} />
-          </View>
-          <Text className="mt-4 text-lg font-bold text-artisan-slate text-center">
-            No Crafts Found
-          </Text>
-          <Text className="mt-2 text-center text-sm text-artisan-muted">
-            We couldn't find any crafts matching "{query}". Try searching for materials like "clay", "silk", "wood", or craft names.
-          </Text>
+        <View key="empty" className="flex-1 justify-center p-4">
+          <EmptyState icon={ShoppingBag} title={t('buyer.nothingFound')} subtitle={t('buyer.noResultsFor', { q: query })} />
         </View>
       ) : (
         <FlatList
+          key="results"
           data={results}
           keyExtractor={(item) => item.id}
           renderItem={renderResultCard}
           contentContainerStyle={{ padding: 16 }}
           ListHeaderComponent={
             searched && results.length > 0 ? (
-              <View className="mb-3 flex-row items-center justify-between">
-                <Text className="text-sm font-bold text-slate-600">
-                  {results.length} Craft{results.length > 1 ? 's' : ''} Discovered
-                </Text>
-                <Text className="text-xs text-artisan-muted">
-                  Ranked by Relevance
-                </Text>
-              </View>
+              <Text className="mb-3 text-base font-semibold text-artisan-muted">
+                {t('buyer.results', { n: results.length })}
+              </Text>
             ) : null
           }
           ListEmptyComponent={
             !searched ? (
-              <View className="items-center justify-center p-8 mt-6">
-                <Text className="text-base font-bold text-artisan-slate text-center">
-                  Search Authentic Indian Crafts
-                </Text>
-                <Text className="mt-2 text-center text-xs text-artisan-muted leading-5">
-                  Type what you are looking for in everyday words, e.g. "gift for housewarming", "traditional wall decor", or "terracotta lamp".
+              <View className="mt-10 items-center">
+                <Search color={COLORS.border} size={56} />
+                <Text className="mt-3 text-center text-lg text-artisan-muted">
+                                    {t('buyer.typeOrTap')}
                 </Text>
               </View>
             ) : null

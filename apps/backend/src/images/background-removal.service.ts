@@ -45,7 +45,7 @@ export class BackgroundRemovalService {
       include: {
         translations: true,
         metadata: true,
-        media: true,
+        media: { orderBy: { displayOrder: 'asc' } },
       },
     });
 

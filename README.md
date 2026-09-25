@@ -1,4 +1,4 @@
-# 🎨 KalaSangam (कलासंगम)
+# 🎨 Kala Vaani (कलावाणी)
 
 > **Empowering Marginalized Artisans Through Multimodal Generative AI***
 
@@ -9,7 +9,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-KalaSangam is an **AI-powered digital business platform** that enables rural and marginalized artisans to transform handcrafted products into professional digital catalogs using **voice, images, and Generative AI**.
+Kala Vaani is an **AI-powered digital business platform** that enables rural and marginalized artisans to transform handcrafted products into professional digital catalogs using **voice, images, and Generative AI**.
 
 The platform simplifies product onboarding, automates marketing content creation, recommends fair pricing, and connects artisans directly with retail and B2B buyers.
 
@@ -26,7 +26,7 @@ Millions of Indian artisans produce exceptional handmade products but struggle w
 - Limited online visibility
 - Unfair pricing
 
-KalaSangam bridges this gap using **Multimodal AI**.
+Kala Vaani bridges this gap using **Multimodal AI**.
 
 ---
 
@@ -110,7 +110,7 @@ Supports
 # 🏗️ Architecture
 
 ```
-kalasangam/
+kala-vaani/
 │
 ├── apps/
 │   ├── backend/
@@ -387,7 +387,7 @@ Track Order
 
 # 👨‍💻 Team
 
-**Team Name:** KalaSangam
+**Team Name:** Kala Vaani
 
 ### Members
 
@@ -414,4 +414,4 @@ If you like this project,
 
 ---
 
-> **KalaSangam — Preserving India's Craft Heritage through AI.**
+> **Kala Vaani — Preserving India's Craft Heritage through AI.**

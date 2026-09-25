@@ -70,6 +70,15 @@ export class UsersService {
       );
     }
 
+    // Save the phone given at onboarding if no other account owns it
+    const phone = dto.phone?.trim();
+    if (phone) {
+      const owner = await this.userRepository.findByPhone(phone);
+      if (!owner) {
+        await this.userRepository.updateUserPhone(authenticatedUser.id, phone);
+      }
+    }
+
     this.logger.log(`Creating profile for artisan user ID: ${authenticatedUser.id}`);
     return this.userRepository.createProfile(authenticatedUser.id, dto);
   }
@@ -83,6 +92,18 @@ export class UsersService {
       throw new NotFoundException(
         'Artisan profile not found. Please create a profile using POST /users/profile first.',
       );
+    }
+
+    // Phone lives on the user row and is unique; blank clears it
+    if (dto.phone !== undefined) {
+      const phone = dto.phone.trim() || null;
+      if (phone) {
+        const owner = await this.userRepository.findByPhone(phone);
+        if (owner && owner.id !== userId) {
+          throw new ConflictException('This phone number is already used by another account.');
+        }
+      }
+      await this.userRepository.updateUserPhone(userId, phone);
     }
 
     this.logger.log(`Updating profile for artisan user ID: ${userId}`);
